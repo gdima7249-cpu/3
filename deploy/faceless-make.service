@@ -1,0 +1,9 @@
+[Unit]
+Description=faceless: собрать новые ролики
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/faceless
+ExecStart=/opt/faceless/.venv/bin/python -m faceless make --count 3
+Nice=10

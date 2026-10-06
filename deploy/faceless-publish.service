@@ -1,0 +1,8 @@
+[Unit]
+Description=faceless: загрузить очередь на YouTube/TikTok
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/faceless
+ExecStart=/opt/faceless/.venv/bin/python -m faceless publish

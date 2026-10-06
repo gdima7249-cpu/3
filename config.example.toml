@@ -1,0 +1,57 @@
+# Скопируйте в config.toml и правьте под себя. Всё, что не указано, берётся из faceless/config.py.
+
+[paths]
+output_dir = "output"          # готовые ролики и промежуточные файлы
+db = "data/faceless.sqlite3"   # какие посты уже использованы, очередь публикаций
+
+[reddit]
+subreddits = ["AskReddit", "TrueOffMyChest", "tifu", "AmItheAsshole", "relationship_advice"]
+sort = "top"            # top | hot
+time = "day"            # для top: hour | day | week | month
+limit = 50
+min_score = 1500
+min_chars = 300         # слишком короткие истории не удерживают
+max_chars = 5000
+top_comments = 4        # для «вопросных» сабов (AskReddit): сколько лучших ответов озвучить
+question_subreddits = ["AskReddit", "NoStupidQuestions"]
+
+[text]
+language = "ru"
+adapter = "claude"      # claude | translate | none
+model = "claude-opus-5-5"
+min_quality = 6         # Claude оценивает «смотрибельность» 1..10; ниже — пропускаем
+
+[tts]
+engine = "edge"         # edge | elevenlabs | silent (silent — для тестов без сети)
+voices = ["ru-RU-DmitryNeural", "ru-RU-SvetlanaNeural"]
+rate = "+12%"           # чуть быстрее нормы — лучше удержание
+elevenlabs_voice_ids = []
+elevenlabs_model = "eleven_multilingual_v2"
+
+[video]
+width = 1080
+height = 1920
+fps = 30
+max_part_seconds = 60   # длинные истории режутся на части с клиффхэнгером
+font = "Inter"
+font_size = 92
+words_per_caption = 3
+highlight_colors = ["&H0000F0FF", "&H0055FF55", "&H00FFD24D"]  # ASS BGR: жёлтый, зелёный, голубой
+music_volume = 0.07
+mirror_chance = 0.5     # случайное отражение фона по горизонтали
+
+[schedule]
+timezone = "Europe/Moscow"
+publish_times = ["09:30", "14:30", "19:30"]
+
+[youtube]
+enabled = true
+client_secrets = "secrets/client_secret.json"
+token = "secrets/youtube_token.json"
+category_id = "24"                  # Entertainment
+default_tags = ["reddit", "истории", "shorts"]
+contains_synthetic_media = true     # честная пометка синтетического голоса (требование YouTube)
+
+[tiktok]
+enabled = false
+privacy_level = "SELF_ONLY"         # неаудированные приложения могут постить только SELF_ONLY

@@ -1,0 +1,10 @@
+[Unit]
+Description=faceless: сборка роликов раз в сутки
+
+[Timer]
+OnCalendar=*-*-* 03:10
+RandomizedDelaySec=20min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

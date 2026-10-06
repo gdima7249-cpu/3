@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+config.toml
+secrets/*
+!secrets/.gitkeep
+output/
+data/
+assets/backgrounds/*
+!assets/backgrounds/.gitkeep
+assets/music/*
+!assets/music/.gitkeep
+.pytest_cache/
