@@ -186,4 +186,26 @@ def add_background(url: str, cfg: dict) -> Path:
     except Exception:
         out.unlink(missing_ok=True)
         raise ValueError("Файл скачался, но это не видео.")
-    return out
+    return shrink_background(out)
+
+
+def shrink_background(path: Path, max_side: int = 1280) -> Path:
+    """Сжимает фон до 720p без звука: в 5–20 раз меньше места и быстрее рендер на слабом сервере."""
+    from . import media
+
+    before = path.stat().st_size
+    tmp = path.with_suffix(".small.mp4")
+    print("  сжимаю под 720p (на слабом сервере 1–3 минуты)…")
+    media.run(["ffmpeg", "-y", "-i", str(path), "-an", "-vf",
+               f"scale='if(gt(iw,ih),{max_side},-2)':'if(gt(iw,ih),-2,{max_side})'",
+               "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-pix_fmt", "yuv420p",
+               "-threads", "1", "-movflags", "+faststart", str(tmp)])
+    if tmp.stat().st_size < before:
+        tmp.replace(path.with_suffix(".mp4"))
+        if path.suffix.lower() != ".mp4":
+            path.unlink(missing_ok=True)
+        path = path.with_suffix(".mp4")
+    else:
+        tmp.unlink()
+    print(f"  {before / 1e6:.0f} МБ → {path.stat().st_size / 1e6:.0f} МБ")
+    return path

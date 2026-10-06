@@ -17,8 +17,10 @@ command -v apt-get >/dev/null || die "скрипт рассчитан на Ubunt
 
 free_mb() { df -Pm "$1" | awk 'NR==2 {print $4}'; }
 ROOT_FREE=$(free_mb /)
-if [ "$ROOT_FREE" -lt 1500 ]; then
-  printf '\n\033[1;31mНа диске свободно всего %s МБ, а нужно минимум 1500 МБ.\033[0m\n' "$ROOT_FREE"
+NEED_MB=500                                   # программа ~150 МБ + запас под фоны и ролики
+command -v ffmpeg >/dev/null || NEED_MB=900   # ffmpeg с зависимостями ещё ~400 МБ
+if [ "$ROOT_FREE" -lt "$NEED_MB" ]; then
+  printf '\n\033[1;31mНа диске свободно всего %s МБ, а нужно минимум %s МБ.\033[0m\n' "$ROOT_FREE" "$NEED_MB"
   echo "Что занимает место:"
   du -xh --max-depth=1 / 2>/dev/null | sort -h | tail -8
   echo
@@ -97,9 +99,9 @@ chmod 755 /usr/local/bin/faceless
 cp "$APP"/deploy/faceless-*.service "$APP"/deploy/faceless-*.timer /etc/systemd/system/
 systemctl daemon-reload 2>/dev/null || true
 
-FREE_GB=$(df -BG --output=avail "$HOME_DIR" | tail -1 | tr -dc '0-9')
-say "Готово! Свободно на диске: ${FREE_GB} ГБ"
-[ "${FREE_GB:-0}" -ge 3 ] || echo "  Внимание: места мало, нужно хотя бы 3 ГБ."
+say "Готово! Свободно на диске: $(free_mb "$HOME_DIR") МБ"
+FREE_MB=$(free_mb "$HOME_DIR")
+[ "$FREE_MB" -ge 400 ] || echo "  Внимание: осталось ${FREE_MB} МБ. Фоновых видео добавляйте не больше 3, они сжимаются автоматически."
 cat <<'EOF'
 
 Дальше (подробно — в ИНСТРУКЦИЯ.md):

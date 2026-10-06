@@ -132,3 +132,47 @@ def test_telegram_publish_flow(tmp_path, monkeypatch):
     assert "часть 1/2" in sent[0] and "#redditstories" in sent[0]
     assert Store(cfg["paths"]["db"]).videos()[0]["telegram_id"] == "42"
     assert not video.exists()  # YouTube не подключён → учитывается только Telegram, файл удалён
+
+
+def test_youtube_resumable_upload_resumes_after_drop(tmp_path, monkeypatch):
+    import google.auth.transport.requests as gtr
+    from faceless import youtube
+    from faceless.config import DEFAULTS
+
+    video = tmp_path / "v.mp4"
+    video.write_bytes(b"0123456789")
+    calls = []
+
+    class Resp:
+        def __init__(self, code, headers=None, body=None):
+            self.status_code, self.headers, self._body, self.text = code, headers or {}, body or {}, ""
+
+        def json(self):
+            return self._body
+
+    class FakeSession:
+        def __init__(self, creds):
+            pass
+
+        def post(self, url, **kw):
+            calls.append(("init", kw["headers"]["X-Upload-Content-Length"]))
+            return Resp(200, {"Location": "https://upload/session"})
+
+        def put(self, url, data=None, headers=None, **kw):
+            if headers.get("Content-Range", "").startswith("bytes */"):
+                calls.append(("status",))
+                return Resp(308, {"Range": "bytes=0-3"})
+            sent = data.read()
+            calls.append(("put", headers.get("Content-Range"), sent))
+            if len([c for c in calls if c[0] == "put"]) == 1:
+                raise ConnectionError("drop")  # обрыв на первой попытке
+            return Resp(201, body={"id": "abc123"})
+
+    monkeypatch.setattr(gtr, "AuthorizedSession", FakeSession)
+    monkeypatch.setattr(youtube, "credentials", lambda cfg: None)
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    row = {"path": str(video), "title": "T", "description": "D", "tags": "[]",
+           "publish_at": "2000-01-01T00:00:00+00:00"}
+    assert youtube.upload(row, DEFAULTS) == "abc123"
+    assert calls[0] == ("init", "10")
+    assert calls[-1] == ("put", "bytes 4-9/10", b"456789")

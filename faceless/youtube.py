@@ -78,14 +78,57 @@ def build_body(row, cfg: dict) -> dict:
     }
 
 
-def upload(row, cfg: dict) -> str:
-    from googleapiclient.discovery import build
-    from googleapiclient.http import MediaFileUpload
+UPLOAD_URL = "https://www.googleapis.com/upload/youtube/v3/videos"
 
-    service = build("youtube", "v3", credentials=credentials(cfg), cache_discovery=False)
-    media = MediaFileUpload(row["path"], mimetype="video/mp4", chunksize=8 * 1024 * 1024, resumable=True)
-    request = service.videos().insert(part="snippet,status", body=build_body(row, cfg), media_body=media)
-    response = None
-    while response is None:
-        _, response = request.next_chunk(num_retries=5)
-    return response["id"]
+
+def upload(row, cfg: dict, attempts: int = 6) -> str:
+    """Resumable upload через REST (без тяжёлой google-api-python-client — экономим ~110 МБ диска)."""
+    import time
+
+    from google.auth.transport.requests import AuthorizedSession
+
+    session = AuthorizedSession(credentials(cfg))
+    path = Path(row["path"])
+    size = path.stat().st_size
+    init = session.post(
+        UPLOAD_URL, params={"uploadType": "resumable", "part": "snippet,status"},
+        json=build_body(row, cfg), timeout=60,
+        headers={"X-Upload-Content-Type": "video/mp4", "X-Upload-Content-Length": str(size)},
+    )
+    _raise(init)
+    location = init.headers["Location"]
+
+    offset = 0
+    for attempt in range(attempts):
+        try:
+            with path.open("rb") as f:
+                f.seek(offset)
+                headers = {"Content-Length": str(size - offset), "Content-Type": "video/mp4"}
+                if offset:
+                    headers["Content-Range"] = f"bytes {offset}-{size - 1}/{size}"
+                resp = session.put(location, data=f, headers=headers, timeout=900)
+            if resp.status_code in (200, 201):
+                return resp.json()["id"]
+            if resp.status_code < 500 and resp.status_code != 308:
+                _raise(resp)
+        except OSError:
+            pass  # обрыв соединения — спросим, сколько дошло, и продолжим
+        time.sleep(min(60, 2 ** attempt * 3))
+        status = session.put(location, headers={"Content-Range": f"bytes */{size}", "Content-Length": "0"},
+                             timeout=60)
+        if status.status_code in (200, 201):
+            return status.json()["id"]
+        rng = status.headers.get("Range")  # "bytes=0-12345"
+        offset = int(rng.split("-")[1]) + 1 if rng else 0
+    raise RuntimeError("YouTube: загрузка не удалась после нескольких попыток")
+
+
+def _raise(resp) -> None:
+    if resp.status_code >= 400:
+        try:
+            err = resp.json()["error"]
+            reason = (err.get("errors") or [{}])[0].get("reason", "")
+            msg = f"{err.get('code')} {reason}: {err.get('message')}"
+        except Exception:
+            msg = f"{resp.status_code}: {resp.text[:300]}"
+        raise RuntimeError(f"YouTube {msg}")

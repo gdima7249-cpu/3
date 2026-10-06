@@ -40,7 +40,7 @@ DEMO_POST_RU = Post(
 )
 
 
-def _demo_background(path: Path, seconds: int = 90) -> Path:
+def _demo_background(path: Path, seconds: int = 30) -> Path:
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         media.run(["ffmpeg", "-y", "-f", "lavfi", "-i", f"mandelbrot=s=720x1280:r=30",
