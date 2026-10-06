@@ -15,10 +15,24 @@ die() { printf '\n\033[1;31mОшибка: %s\033[0m\n' "$*"; exit 1; }
 [ "$(id -u)" -eq 0 ] || die "запустите через sudo (или под root)"
 command -v apt-get >/dev/null || die "скрипт рассчитан на Ubuntu/Debian"
 
+free_mb() { df -Pm "$1" | awk 'NR==2 {print $4}'; }
+ROOT_FREE=$(free_mb /)
+if [ "$ROOT_FREE" -lt 1500 ]; then
+  printf '\n\033[1;31mНа диске свободно всего %s МБ, а нужно минимум 1500 МБ.\033[0m\n' "$ROOT_FREE"
+  echo "Что занимает место:"
+  du -xh --max-depth=1 / 2>/dev/null | sort -h | tail -8
+  echo
+  echo "Освободить место безопасно можно так (бот это не затронет):"
+  echo "  apt-get clean; journalctl --vacuum-size=50M; rm -rf /root/.cache/pip /opt/faceless/.cache"
+  echo "Потом запустите установку ещё раз. Если не помогло — пришлите вывод этих команд."
+  exit 1
+fi
+
 say "Ставлю системные пакеты (ffmpeg, python, git, шрифты)"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq ffmpeg git python3 python3-venv fonts-dejavu-core fontconfig ca-certificates curl >/dev/null
+apt-get install -y -qq --no-install-recommends ffmpeg git python3 python3-venv fonts-dejavu-core fontconfig ca-certificates curl >/dev/null
+apt-get clean
 
 PY=""
 for v in python3.13 python3.12 python3.11; do
@@ -46,9 +60,15 @@ else
 fi
 
 say "Ставлю Python-библиотеки (пару минут)"
+# /tmp на дешёвых VPS часто крошечный — распаковываем на основной диск и без кэша
+export TMPDIR="$HOME_DIR/tmp" PIP_NO_CACHE_DIR=1
+mkdir -p "$TMPDIR" && chown faceless: "$TMPDIR"
+rm -rf "$HOME_DIR/.cache/pip"
 [ -x "$APP/.venv/bin/python" ] || runuser -u faceless -- "$PY" -m venv "$APP/.venv"
-runuser -u faceless -- "$APP/.venv/bin/pip" install -q --upgrade pip
-runuser -u faceless -- "$APP/.venv/bin/pip" install -q -r "$APP/requirements.txt"
+runuser -u faceless -- env TMPDIR="$TMPDIR" PIP_NO_CACHE_DIR=1 "$APP/.venv/bin/pip" install -q --upgrade pip
+runuser -u faceless -- env TMPDIR="$TMPDIR" PIP_NO_CACHE_DIR=1 "$APP/.venv/bin/pip" install -q -r "$APP/requirements.txt" \
+  || die "библиотеки не установились. Пришлите вывод команды: df -h"
+rm -rf "$TMPDIR"/*
 
 chmod 700 "$APP/secrets"
 [ -f "$APP/config.toml" ] || runuser -u faceless -- cp "$APP/config.example.toml" "$APP/config.toml"
