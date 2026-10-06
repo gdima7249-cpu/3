@@ -3,6 +3,8 @@
 [paths]
 output_dir = "output"          # готовые ролики и промежуточные файлы
 db = "data/faceless.sqlite3"   # какие посты уже использованы, очередь публикаций
+keep_work_files = false        # удалять промежуточные файлы (голос, субтитры) после рендера
+delete_after_upload = true     # удалять mp4 после загрузки на все площадки — бережёт диск VPS
 
 [reddit]
 subreddits = ["AskReddit", "TrueOffMyChest", "tifu", "AmItheAsshole", "relationship_advice"]
@@ -40,6 +42,8 @@ words_per_caption = 3
 highlight_colors = ["&H0000F0FF", "&H0055FF55", "&H00FFD24D"]  # ASS BGR: жёлтый, зелёный, голубой
 music_volume = 0.07
 mirror_chance = 0.5     # случайное отражение фона по горизонтали
+preset = "veryfast"     # x264: veryfast для слабого VPS, medium — если есть 4+ ядра
+threads = 1             # 1 поток — бот в Telegram на том же сервере не будет тормозить; 0 = все ядра
 
 [schedule]
 timezone = "America/New_York"          # основная англоязычная аудитория — США

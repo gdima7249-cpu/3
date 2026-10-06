@@ -4,5 +4,12 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=/opt/faceless
-ExecStart=/opt/faceless/.venv/bin/python -m faceless publish
+WorkingDirectory=/opt/faceless/app
+ExecStart=/opt/faceless/app/.venv/bin/python -m faceless publish
+User=faceless
+# Telegram-бот на этом же сервере всегда в приоритете: рендер получает CPU/диск по остаточному принципу
+Nice=15
+CPUWeight=20
+IOWeight=20
+MemoryHigh=700M
+TimeoutStartSec=3h

@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import random
 import re
+import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -63,6 +64,8 @@ def produce(post: Post, script: Script, cfg: dict, store: Store, rng: random.Ran
         desc = f"{script.description}\n\n" + ph["source"].format(sub=post.subreddit)
         store.add_video(post_id=post.id, part=part.index, parts=part.total, path=out, title=title,
                         description=desc, tags=script.tags, publish_at=slot)
+        if not cfg["paths"]["keep_work_files"]:
+            shutil.rmtree(work, ignore_errors=True)  # голос, субтитры, карточка больше не нужны
         log.info("Готово: %s (%.1f с), слот %s", out, speech.duration, slot)
         outputs.append(out)
     return outputs
@@ -122,3 +125,17 @@ def publish(cfg: dict, dry_run: bool = False) -> None:
             except Exception as e:
                 log.exception("%s: загрузка %s упала", platform, row["path"])
                 store.set_result(row["id"], platform, None, str(e)[:500])
+
+    if cfg["paths"]["delete_after_upload"] and targets and not dry_run:
+        cleanup_uploaded(store, [name for name, _, _ in targets])
+
+
+def cleanup_uploaded(store: Store, platforms: list[str]) -> None:
+    """Удаляет mp4, которые уже загружены на все включённые площадки: на маленьком диске это важно."""
+    for row in store.videos(limit=1000):
+        path = Path(row["path"])
+        if path.exists() and all(row[f"{p}_id"] for p in platforms):
+            path.unlink()
+            if path.parent.exists() and not any(path.parent.iterdir()):
+                path.parent.rmdir()
+            log.info("Удалён загруженный файл %s", path)

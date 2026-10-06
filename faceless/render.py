@@ -55,7 +55,8 @@ def render(*, voice: Path, subs: Path, card: Path, title_end: float, duration: f
         af = "[1:a]aresample=44100,apad,loudnorm=I=-14:TP=-1.5:LRA=11[a]"
 
     cmd += ["-filter_complex", f"{vf};{af}", "-map", "[v]", "-map", "[a]", "-t", f"{total:.2f}",
-            "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+            "-c:v", "libx264", "-preset", vc["preset"], "-crf", "21",
+            "-threads", str(vc["threads"]), "-pix_fmt", "yuv420p",
             "-r", str(fps), "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-movflags", "+faststart",
             str(out.resolve())]
     out.parent.mkdir(parents=True, exist_ok=True)

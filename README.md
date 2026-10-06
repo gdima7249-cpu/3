@@ -43,6 +43,7 @@ python -m faceless publish
 python -m faceless status
 ```
 
+Установка на VPS рядом с Telegram-ботом — пошагово в [`deploy/SERVER.md`](deploy/SERVER.md).
 На сервере — `deploy/*.timer` (systemd): сборка раз в сутки ночью, `publish` каждые 15 минут.
 Есть `Dockerfile` (config.toml, .env, secrets/, assets/, output/, data/ монтируйте томами).
 

@@ -8,7 +8,8 @@ from pathlib import Path
 
 DEFAULTS: dict = {
     "paths": {"output_dir": "output", "db": "data/faceless.sqlite3",
-              "backgrounds_dir": "assets/backgrounds", "music_dir": "assets/music"},
+              "backgrounds_dir": "assets/backgrounds", "music_dir": "assets/music",
+              "keep_work_files": False, "delete_after_upload": True},
     "reddit": {
         "subreddits": ["AskReddit", "TrueOffMyChest", "tifu"],
         "sort": "top", "time": "day", "limit": 50,
@@ -25,6 +26,7 @@ DEFAULTS: dict = {
         "font": "Inter", "font_size": 92, "words_per_caption": 3,
         "highlight_colors": ["&H0000F0FF", "&H0055FF55", "&H00FFD24D"],
         "music_volume": 0.07, "mirror_chance": 0.5,
+        "preset": "veryfast", "threads": 0,  # для слабого VPS: veryfast и 1–2 потока
     },
     "schedule": {"timezone": "America/New_York", "publish_times": ["11:50", "16:50", "19:50"]},
     "youtube": {

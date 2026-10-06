@@ -89,3 +89,24 @@ def test_defaults_are_consistent():
 
 def test_compact_number():
     assert [card.compact_number(n) for n in (950, 24100, 3000, 1_250_000)] == ["950", "24.1K", "3K", "1.2M"]
+
+
+def test_cleanup_uploaded_deletes_only_fully_uploaded(tmp_path):
+    from faceless.pipeline import cleanup_uploaded
+    from faceless.storage import Store
+
+    store = Store(tmp_path / "db.sqlite3")
+    files = []
+    for i in range(2):
+        f = tmp_path / f"v{i}" / "part1.mp4"
+        f.parent.mkdir()
+        f.write_bytes(b"x")
+        files.append(f)
+        store.add_video(post_id=str(i), part=1, parts=1, path=f, title="t", description="d", tags=[],
+                        publish_at=f"2030-01-0{i + 1}T00:00:00+00:00")
+    store.set_result(1, "youtube", "yt1", None)
+    store.set_result(1, "tiktok", "tt1", None)
+    store.set_result(2, "youtube", "yt2", None)  # в TikTok ещё не ушёл
+    cleanup_uploaded(store, ["youtube", "tiktok"])
+    assert not files[0].exists() and not files[0].parent.exists()
+    assert files[1].exists()
