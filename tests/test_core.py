@@ -110,3 +110,25 @@ def test_cleanup_uploaded_deletes_only_fully_uploaded(tmp_path):
     cleanup_uploaded(store, ["youtube", "tiktok"])
     assert not files[0].exists() and not files[0].parent.exists()
     assert files[1].exists()
+
+
+def test_telegram_publish_flow(tmp_path, monkeypatch):
+    from faceless import pipeline, telegram
+    from faceless.config import DEFAULTS, _merge
+    from faceless.storage import Store
+
+    cfg = _merge(DEFAULTS, {"paths": {"db": str(tmp_path / "db.sqlite3")},
+                            "youtube": {"token": str(tmp_path / "none.json")},
+                            "telegram": {"enabled": True}})
+    video = tmp_path / "v" / "part1.mp4"
+    video.parent.mkdir()
+    video.write_bytes(b"x")
+    store = Store(cfg["paths"]["db"])
+    store.add_video(post_id="p", part=1, parts=2, path=video, title="Hook", description="Desc",
+                    tags=["reddit stories"], publish_at="2000-01-01T00:00:00+00:00")
+    sent = []
+    monkeypatch.setattr(telegram, "upload", lambda row, cfg: sent.append(telegram.caption_text(row)) or "42")
+    pipeline.publish(cfg)
+    assert "часть 1/2" in sent[0] and "#redditstories" in sent[0]
+    assert Store(cfg["paths"]["db"]).videos()[0]["telegram_id"] == "42"
+    assert not video.exists()  # YouTube не подключён → учитывается только Telegram, файл удалён

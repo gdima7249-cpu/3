@@ -57,6 +57,9 @@ category_id = "24"                  # Entertainment
 default_tags = ["reddit", "reddit stories", "askreddit", "shorts"]
 contains_synthetic_media = true     # честная пометка синтетического голоса (требование YouTube)
 
+[telegram]
+enabled = false         # true — бот присылает готовый ролик вам в Telegram в момент слота (выложить вручную)
+
 [tiktok]
 enabled = false
 privacy_level = "SELF_ONLY"         # неаудированные приложения могут постить только SELF_ONLY

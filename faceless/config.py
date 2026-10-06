@@ -35,6 +35,7 @@ DEFAULTS: dict = {
         "default_tags": ["reddit", "reddit stories", "askreddit", "shorts"], "contains_synthetic_media": True,
     },
     "tiktok": {"enabled": False, "privacy_level": "SELF_ONLY"},
+    "telegram": {"enabled": False},
 }
 
 

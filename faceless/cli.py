@@ -104,7 +104,10 @@ def main(argv: list[str] | None = None) -> None:
         setup_wizard.run(cfg, args.config)
     elif args.cmd == "add-background":
         from . import setup_wizard
-        print("Сохранено:", setup_wizard.add_background(args.url, cfg))
+        try:
+            print("Сохранено:", setup_wizard.add_background(args.url, cfg))
+        except Exception as e:
+            raise SystemExit(f"Не получилось скачать: {e}")
     elif args.cmd == "auth-youtube":
         from . import youtube
         youtube.credentials(cfg, interactive=True)
@@ -113,7 +116,8 @@ def main(argv: list[str] | None = None) -> None:
         for r in Store(cfg["paths"]["db"]).videos():
             yt = r["youtube_id"] or (f"ошибка: {r['youtube_error'][:40]}" if r["youtube_error"] else "—")
             tt = r["tiktok_id"] or (f"ошибка: {r['tiktok_error'][:40]}" if r["tiktok_error"] else "—")
-            print(f"#{r['id']:<4} {r['publish_at']}  YT:{yt:<14} TT:{tt:<14} {r['title'][:60]}")
+            tg = "✔" if r["telegram_id"] else ("ошибка" if r["telegram_error"] else "—")
+            print(f"#{r['id']:<4} {r['publish_at']}  YT:{yt:<14} TT:{tt:<14} TG:{tg:<6} {r['title'][:60]}")
     elif args.cmd == "demo":
         out = Path(cfg["paths"]["output_dir"]) / "demo"
         cfg["paths"]["db"] = str(out / "demo.sqlite3")

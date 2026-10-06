@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS videos (
     publish_at TEXT,                         -- UTC ISO-8601, слот публикации
     youtube_id TEXT, youtube_error TEXT,
     tiktok_id TEXT, tiktok_error TEXT,
+    telegram_id TEXT, telegram_error TEXT,
     created_at TEXT
 );
 """
@@ -32,6 +33,10 @@ class Store:
         self.db = sqlite3.connect(path)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
+        cols = {r[1] for r in self.db.execute("PRAGMA table_info(videos)")}
+        for col in ("telegram_id", "telegram_error"):  # миграция баз, созданных до появления Telegram
+            if col not in cols:
+                self.db.execute(f"ALTER TABLE videos ADD COLUMN {col} TEXT")
 
     def seen(self, post_id: str) -> bool:
         return self.db.execute("SELECT 1 FROM posts WHERE id=?", (post_id,)).fetchone() is not None

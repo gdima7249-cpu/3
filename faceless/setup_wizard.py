@@ -110,9 +110,48 @@ def run(cfg: dict, config_path: str) -> None:
     else:
         print("Без файла Google загрузка в YouTube работать не будет — вернитесь к шагу 4 и запустите setup снова.")
 
+    _setup_telegram(root, env, env_path)
+
     bgs = [p for p in (root / cfg["paths"]["backgrounds_dir"]).glob("*") if p.suffix.lower() in {".mp4", ".mov", ".mkv", ".webm"}]
     print(f"\nФоновых видео: {len(bgs)}." + ("" if bgs else " Добавьте: faceless add-background ССЫЛКА"))
     print("\nГотово. Пробный ролик: faceless make -n 1")
+
+
+def _setup_telegram(root: Path, env: dict, env_path: Path) -> None:
+    from . import telegram
+
+    print("\n--- Telegram (по желанию) ---")
+    print("Бот будет присылать вам готовые ролики с названием и описанием — выложить с телефона за 30 секунд.")
+    if env.get("TELEGRAM_BOT_TOKEN") and env.get("TELEGRAM_CHAT_ID"):
+        if input("Telegram уже настроен. Перенастроить? (y/Enter) > ").strip().lower() != "y":
+            return
+    token = input("Токен НОВОГО бота от @BotFather (Enter — пропустить)\n> ").strip()
+    if not token:
+        return
+    input("Откройте этого бота в Telegram, нажмите «Запустить» (/start), потом вернитесь и нажмите Enter > ")
+    try:
+        chat_id = telegram.find_chat_id(token)
+    except Exception as e:
+        print(f"Не получилось: {e}. Проверьте токен и запустите setup ещё раз.")
+        return
+    if not chat_id:
+        print("Бот не видит вашего /start. Напишите ему что-нибудь и запустите setup ещё раз.")
+        return
+    env.update(TELEGRAM_BOT_TOKEN=token, TELEGRAM_CHAT_ID=str(chat_id))
+    _write_env(env_path, env)
+    sent = True
+    try:
+        telegram._call("sendMessage", token, data={"chat_id": chat_id, "text": "✅ faceless подключён. Сюда будут приходить ролики."})
+    except Exception:
+        sent = False
+    cfg_file = root / "config.toml"
+    text = cfg_file.read_text(encoding="utf-8")
+    if "[telegram]" in text:
+        text = re.sub(r"(\[telegram\][^\[]*?enabled\s*=\s*)false", r"\1true", text, count=1)
+    else:
+        text += "\n[telegram]\nenabled = true\n"
+    cfg_file.write_text(text, encoding="utf-8")
+    print("Telegram подключён ✔" + ("" if sent else " (тестовое сообщение не ушло — проверьте позже)"))
 
 
 def add_background(url: str, cfg: dict) -> Path:

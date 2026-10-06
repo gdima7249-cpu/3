@@ -50,6 +50,7 @@ say "Ставлю Python-библиотеки (пару минут)"
 runuser -u faceless -- "$APP/.venv/bin/pip" install -q --upgrade pip
 runuser -u faceless -- "$APP/.venv/bin/pip" install -q -r "$APP/requirements.txt"
 
+chmod 700 "$APP/secrets"
 [ -f "$APP/config.toml" ] || runuser -u faceless -- cp "$APP/config.example.toml" "$APP/config.toml"
 [ -f "$APP/.env" ] || { runuser -u faceless -- touch "$APP/.env"; chmod 600 "$APP/.env"; }
 

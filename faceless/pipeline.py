@@ -104,12 +104,17 @@ def publish(cfg: dict, dry_run: bool = False) -> None:
     store = Store(cfg["paths"]["db"])
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     targets = []
-    if cfg["youtube"]["enabled"]:
+    if cfg["youtube"]["enabled"] and not Path(cfg["youtube"]["token"]).exists():
+        log.warning("YouTube не подключён (нет %s) — пропускаю. Подключить: faceless setup", cfg["youtube"]["token"])
+    elif cfg["youtube"]["enabled"]:
         from . import youtube
         targets.append(("youtube", youtube.upload, lambda r: True))
     if cfg["tiktok"]["enabled"]:
         from . import tiktok
         targets.append(("tiktok", tiktok.upload, lambda r: r["publish_at"] <= now))
+    if cfg["telegram"]["enabled"]:
+        from . import telegram
+        targets.append(("telegram", telegram.upload, lambda r: r["publish_at"] <= now))
 
     for platform, upload, due in targets:
         for row in store.pending(platform):

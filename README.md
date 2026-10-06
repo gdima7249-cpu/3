@@ -1,5 +1,8 @@
 # faceless-factory
 
+> **Новичкам: пошаговая инструкция от нуля до роликов — [ИНСТРУКЦИЯ.md](ИНСТРУКЦИЯ.md).**
+> Установка на сервер одной командой: `curl -fsSL https://raw.githubusercontent.com/gdima7249-cpu/3/claude/busy-mccarthy-bf77na/deploy/install.sh | sudo bash`
+
 Автоматическая фабрика вертикальных роликов (YouTube Shorts / TikTok) из историй Reddit.
 По умолчанию ролики на **английском** (самая большая аудитория и выше доход с просмотра);
 русский включается в `config.toml`: `language = "ru"` + русские голоса.
@@ -43,7 +46,6 @@ python -m faceless publish
 python -m faceless status
 ```
 
-Установка на VPS рядом с Telegram-ботом — пошагово в [`deploy/SERVER.md`](deploy/SERVER.md).
 На сервере — `deploy/*.timer` (systemd): сборка раз в сутки ночью, `publish` каждые 15 минут.
 Есть `Dockerfile` (config.toml, .env, secrets/, assets/, output/, data/ монтируйте томами).
 
