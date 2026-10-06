@@ -68,6 +68,9 @@ def main(argv: list[str] | None = None) -> None:
     pb = sub.add_parser("publish", help="загрузить очередь на YouTube/TikTok")
     pb.add_argument("--dry-run", action="store_true")
 
+    sub.add_parser("setup", help="пошаговая настройка: ключи, файл Google, вход в YouTube")
+    bg = sub.add_parser("add-background", help="скачать фоновое видео по прямой ссылке")
+    bg.add_argument("url")
     sub.add_parser("auth-youtube", help="однократная авторизация YouTube (OAuth)")
     sub.add_parser("status", help="последние ролики и статус публикаций")
 
@@ -96,6 +99,12 @@ def main(argv: list[str] | None = None) -> None:
             print(f"{post.score:>7}  r/{post.subreddit:<20} {size:>5} симв.  {post.title[:80]}")
     elif args.cmd == "publish":
         pipeline.publish(cfg, dry_run=args.dry_run)
+    elif args.cmd == "setup":
+        from . import setup_wizard
+        setup_wizard.run(cfg, args.config)
+    elif args.cmd == "add-background":
+        from . import setup_wizard
+        print("Сохранено:", setup_wizard.add_background(args.url, cfg))
     elif args.cmd == "auth-youtube":
         from . import youtube
         youtube.credentials(cfg, interactive=True)

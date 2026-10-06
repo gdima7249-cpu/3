@@ -9,8 +9,12 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 
 from .models import Post, Script
+
+log = logging.getLogger("faceless")
 
 SYSTEM_PROMPT = """You write scripts for vertical short videos (YouTube Shorts / TikTok) in the "Reddit stories" genre.
 You get a Reddit post (and, for question threads, the top answers). Turn it into a voice-over script.
@@ -95,6 +99,9 @@ def _translate(text: str, target: str) -> str:
 
 def adapt(post: Post, cfg: dict) -> Script:
     mode = cfg["text"]["adapter"]
+    if mode == "claude" and not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
+        log.warning("Нет ANTHROPIC_API_KEY — истории идут без переработки Claude (adapter = none)")
+        mode = "none"
     if mode == "claude":
         return adapt_claude(post, cfg)
 
