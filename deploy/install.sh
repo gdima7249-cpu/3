@@ -78,24 +78,40 @@ chmod 700 "$APP/secrets"
 
 MEM_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
 SWAP_MB=$(awk '/SwapTotal/ {print int($2/1024)}' /proc/meminfo)
-if [ "$MEM_MB" -lt 1800 ] && [ "$SWAP_MB" -lt 512 ] && [ ! -f /swapfile ]; then
-  say "Памяти ${MEM_MB} МБ — добавляю swap 1 ГБ, чтобы рендер не уронил бота"
-  if fallocate -l 1G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=1024 status=none; then
-    chmod 600 /swapfile && mkswap -q /swapfile && swapon /swapfile \
-      && echo '/swapfile none swap sw 0 0' >> /etc/fstab \
-      || { rm -f /swapfile; echo "  (swap включить не удалось — на некоторых VPS он запрещён, это не критично)"; }
+# Недописанный swap-файл от неудачной попытки съедает диск — убираем, если он не подключён
+if [ -f /swapfile ] && ! swapon --show=NAME --noheadings | grep -q '^/swapfile$'; then
+  rm -f /swapfile
+fi
+if [ "$MEM_MB" -lt 1800 ] && [ "$SWAP_MB" -lt 256 ] && [ ! -f /swapfile ]; then
+  # swap берём из свободного места, но оставляем минимум 700 МБ запаса: диск не должен забиваться под завязку
+  FREE_NOW=$(free_mb /)
+  SWAP_SIZE=0
+  [ "$FREE_NOW" -ge 1200 ] && SWAP_SIZE=256
+  [ "$FREE_NOW" -ge 2200 ] && SWAP_SIZE=512
+  if [ "$SWAP_SIZE" -gt 0 ]; then
+    say "Памяти ${MEM_MB} МБ — добавляю swap ${SWAP_SIZE} МБ, чтобы рендер не уронил бота"
+    if { fallocate -l "${SWAP_SIZE}M" /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count="$SWAP_SIZE" status=none; } \
+       && chmod 600 /swapfile && mkswap -q /swapfile >/dev/null && swapon /swapfile; then
+      grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+    else
+      swapoff /swapfile 2>/dev/null || true
+      rm -f /swapfile
+      echo "  (swap включить не удалось — на некоторых VPS он запрещён, это не критично)"
+    fi
+  else
+    echo "  Диск маленький (свободно ${FREE_NOW} МБ), swap не добавляю. Ролики будут собираться по одному."
   fi
 fi
 
 say "Ставлю команду faceless и таймеры автозапуска"
-cat > /usr/local/bin/faceless <<EOF
+cat > /usr/local/bin/faceless.new <<EOF
 #!/bin/sh
 # Обёртка: запускает faceless от пользователя faceless в папке проекта
 if [ "\$(id -u)" -ne 0 ]; then exec sudo "\$0" "\$@"; fi
 cd "$APP" || exit 1
 exec runuser -u faceless -- "$APP/.venv/bin/python" -m faceless "\$@"
 EOF
-chmod 755 /usr/local/bin/faceless
+chmod 755 /usr/local/bin/faceless.new && mv -f /usr/local/bin/faceless.new /usr/local/bin/faceless
 cp "$APP"/deploy/faceless-*.service "$APP"/deploy/faceless-*.timer /etc/systemd/system/
 systemctl daemon-reload 2>/dev/null || true
 
