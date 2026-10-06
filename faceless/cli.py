@@ -4,6 +4,7 @@ import argparse
 import json
 import logging
 import random
+import shutil
 from pathlib import Path
 
 from . import adapt, media, pipeline
@@ -76,6 +77,7 @@ def main(argv: list[str] | None = None) -> None:
 
     dm = sub.add_parser("demo", help="офлайн-демо: тишина вместо голоса, сгенерированный фон")
     dm.add_argument("--tts", default="silent", choices=["silent", "edge", "elevenlabs"])
+    dm.add_argument("--keep", action="store_true", help="не удалять тестовый ролик после проверки")
 
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
@@ -129,4 +131,9 @@ def main(argv: list[str] | None = None) -> None:
         post = DEMO_POST_RU if cfg["text"]["language"] == "ru" else DEMO_POST_EN
         for p in pipeline.produce(post, adapt.adapt(post, cfg), cfg, Store(cfg["paths"]["db"]),
                                   random.Random(7)):
-            print(p)
+            print(f"Тестовый ролик собран: {p.name}, {p.stat().st_size / 1e6:.0f} МБ, {media.duration(p):.0f} с")
+        if args.keep:
+            print("Сохранён в", out)
+        else:
+            shutil.rmtree(out, ignore_errors=True)
+            print("Всё работает ✔ (тестовые файлы удалены; --keep оставит их для просмотра)")
