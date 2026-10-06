@@ -7,6 +7,20 @@ from .models import Part, Script
 
 CHARS_PER_SECOND = 15.0  # средний темп нейроголоса с rate ≈ +10%; уточняется по факту озвучки
 
+PHRASES = {
+    "en": {"part_first": "{title} Part {i}.", "part_next": "Part {i}. {title}",
+           "to_be_continued": " Part {n} is up next.", "meta_part": "{title} (part {i}/{n})",
+           "source": "Story: r/{sub}"},
+    "ru": {"part_first": "{title} Часть {i}.", "part_next": "Часть {i}. {title}",
+           "to_be_continued": " Продолжение в части {n}.", "meta_part": "{title} (часть {i}/{n})",
+           "source": "История: r/{sub}"},
+}
+
+
+def phrases(language: str) -> dict:
+    return PHRASES.get(language, PHRASES["en"])
+
+
 _SENTENCE = re.compile(r"(?<=[.!?…])\s+|\n+")
 
 
@@ -18,13 +32,14 @@ def estimate_seconds(text: str, cps: float = CHARS_PER_SECOND) -> float:
     return len(text) / cps
 
 
-def split_parts(script: Script, max_seconds: float, cps: float = CHARS_PER_SECOND) -> list[Part]:
+def split_parts(script: Script, max_seconds: float, cps: float = CHARS_PER_SECOND,
+                language: str = "en") -> list[Part]:
     """Режет тело по предложениям так, чтобы каждая часть (с заголовком и подводкой) влезла в лимит.
 
     Части выходят примерно равными: лучше 2×45 с, чем 58 + 32.
     """
     sentences = split_sentences(script.body)
-    overhead = estimate_seconds(script.title, cps) + 3.0  # заголовок + «Часть N…» / «Продолжение…»
+    overhead = estimate_seconds(script.title, cps) + 3.0  # заголовок + «Part N…» / «Part N+1 is up next»
     budget = max(max_seconds - overhead, 10.0)
     total = estimate_seconds(script.body, cps)
     n = max(1, -(-int(total * 10) // int(budget * 10)))  # ceil без float-погрешностей
@@ -40,14 +55,15 @@ def split_parts(script: Script, max_seconds: float, cps: float = CHARS_PER_SECON
         chunks[-1].append(sentence)
         acc += dur
 
+    ph = phrases(language)
     total_parts = len(chunks)
     parts = []
     for i, chunk in enumerate(chunks, 1):
         body = " ".join(chunk)
         title = script.title
         if total_parts > 1:
-            title = f"{script.title} Часть {i}." if i == 1 else f"Часть {i}. {script.title}"
+            title = ph["part_first" if i == 1 else "part_next"].format(title=script.title, i=i)
             if i < total_parts:
-                body += f" Продолжение в части {i + 1}."
+                body += ph["to_be_continued"].format(n=i + 1)
         parts.append(Part(index=i, total=total_parts, title=title, body=body))
     return parts

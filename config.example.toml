@@ -16,14 +16,15 @@ top_comments = 4        # для «вопросных» сабов (AskReddit): 
 question_subreddits = ["AskReddit", "NoStupidQuestions"]
 
 [text]
-language = "ru"
-adapter = "claude"      # claude | translate | none
+language = "en"         # en — самая большая аудитория; ru тоже поддерживается
+adapter = "claude"      # claude | none (для en перевод не нужен) | translate
 model = "claude-opus-5-5"
 min_quality = 6         # Claude оценивает «смотрибельность» 1..10; ниже — пропускаем
 
 [tts]
 engine = "edge"         # edge | elevenlabs | silent (silent — для тестов без сети)
-voices = ["ru-RU-DmitryNeural", "ru-RU-SvetlanaNeural"]
+voices = ["en-US-ChristopherNeural", "en-US-AriaNeural", "en-US-GuyNeural", "en-US-JennyNeural"]
+# для ru: ["ru-RU-DmitryNeural", "ru-RU-SvetlanaNeural"]
 rate = "+12%"           # чуть быстрее нормы — лучше удержание
 elevenlabs_voice_ids = []
 elevenlabs_model = "eleven_multilingual_v2"
@@ -41,15 +42,15 @@ music_volume = 0.07
 mirror_chance = 0.5     # случайное отражение фона по горизонтали
 
 [schedule]
-timezone = "Europe/Moscow"
-publish_times = ["09:30", "14:30", "19:30"]
+timezone = "America/New_York"          # основная англоязычная аудитория — США
+publish_times = ["11:50", "16:50", "19:50"] # обед, после школы/работы, вечер
 
 [youtube]
 enabled = true
 client_secrets = "secrets/client_secret.json"
 token = "secrets/youtube_token.json"
 category_id = "24"                  # Entertainment
-default_tags = ["reddit", "истории", "shorts"]
+default_tags = ["reddit", "reddit stories", "askreddit", "shorts"]
 contains_synthetic_media = true     # честная пометка синтетического голоса (требование YouTube)
 
 [tiktok]

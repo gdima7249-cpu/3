@@ -1,7 +1,7 @@
 import random
 from datetime import datetime, timezone
 
-from faceless import reddit, subtitles, tiktok, tts
+from faceless import card, reddit, subtitles, tiktok, tts
 from faceless.config import DEFAULTS
 from faceless.models import Script, Word
 from faceless.schedule import next_slots
@@ -16,16 +16,23 @@ def test_clean_text_strips_links_edits_and_markdown():
 
 
 def test_split_parts_respects_limit_and_adds_cliffhanger():
-    body = " ".join(f"Это предложение номер {i} в длинной истории." for i in range(60))
-    parts = split_parts(Script(title="Хук?", body=body), max_seconds=60)
+    body = " ".join(f"This is sentence number {i} of a long story." for i in range(60))
+    parts = split_parts(Script(title="Hook?", body=body), max_seconds=60)
     assert len(parts) > 1
     for p in parts:
         assert estimate_seconds(p.title + p.body) <= 60 + 5
-    assert parts[0].body.endswith("Продолжение в части 2.")
-    assert "Продолжение" not in parts[-1].body
+    assert parts[0].title == "Hook? Part 1." and parts[1].title.startswith("Part 2.")
+    assert parts[0].body.endswith("Part 2 is up next.")
+    assert "up next" not in parts[-1].body
     # части примерно равные
     lens = [len(p.body) for p in parts]
     assert max(lens) / min(lens) < 2
+
+
+def test_split_parts_russian_phrases():
+    body = " ".join(f"Предложение номер {i} в длинной истории." for i in range(60))
+    parts = split_parts(Script(title="Хук", body=body), max_seconds=60, language="ru")
+    assert parts[0].body.endswith("Продолжение в части 2.")
 
 
 def test_short_story_is_single_part():
@@ -76,4 +83,9 @@ def test_tiktok_chunk_plan():
 
 def test_defaults_are_consistent():
     assert DEFAULTS["text"]["model"] == "claude-opus-5-5"
-    assert random.Random(1).choice(DEFAULTS["tts"]["voices"]).startswith("ru-RU")
+    assert DEFAULTS["text"]["language"] == "en"
+    assert random.Random(1).choice(DEFAULTS["tts"]["voices"]).startswith("en-US")
+
+
+def test_compact_number():
+    assert [card.compact_number(n) for n in (950, 24100, 3000, 1_250_000)] == ["950", "24.1K", "3K", "1.2M"]

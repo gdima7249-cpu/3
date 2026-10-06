@@ -11,7 +11,7 @@ from . import adapt, card, reddit, render, subtitles, tts
 from .models import Post, Script
 from .schedule import next_slots
 from .storage import Store
-from .text import split_parts
+from .text import phrases, split_parts
 
 log = logging.getLogger("faceless")
 
@@ -35,7 +35,8 @@ def candidates(cfg: dict, store: Store, subreddit: str | None = None) -> list[Po
 
 def produce(post: Post, script: Script, cfg: dict, store: Store, rng: random.Random) -> list[Path]:
     vc = cfg["video"]
-    parts = split_parts(script, vc["max_part_seconds"])
+    ph = phrases(cfg["text"]["language"])
+    parts = split_parts(script, vc["max_part_seconds"], language=cfg["text"]["language"])
     slots = next_slots(len(parts), publish_times=cfg["schedule"]["publish_times"],
                        tz=cfg["schedule"]["timezone"], taken=store.taken_slots())
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -57,8 +58,9 @@ def produce(post: Post, script: Script, cfg: dict, store: Store, rng: random.Ran
         render.render(voice=speech.audio, subs=ass, card=card_png, title_end=speech.title_end,
                       duration=speech.duration, out=out, cfg=cfg, rng=rng)
 
-        title = script.title if part.total == 1 else f"{script.title} (часть {part.index}/{part.total})"
-        desc = f"{script.description}\n\nИстория: r/{post.subreddit}"
+        title = script.title if part.total == 1 else ph["meta_part"].format(
+            title=script.title, i=part.index, n=part.total)
+        desc = f"{script.description}\n\n" + ph["source"].format(sub=post.subreddit)
         store.add_video(post_id=post.id, part=part.index, parts=part.total, path=out, title=title,
                         description=desc, tags=script.tags, publish_at=slot)
         log.info("Готово: %s (%.1f с), слот %s", out, speech.duration, slot)

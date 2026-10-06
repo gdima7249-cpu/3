@@ -11,7 +11,21 @@ from .config import load_config
 from .models import Post
 from .storage import Store
 
-DEMO_POST = Post(
+DEMO_POST_EN = Post(
+    id="demo", subreddit="TrueOffMyChest", score=24100, url="",
+    title="My neighbor stole my Wi-Fi for three years, so I got revenge",
+    body=(
+        "Three years ago I noticed my internet crawling every evening. I checked the router and saw a device "
+        "I didn't recognize, called Dad's Laptop. My password was weak, I admit it. I didn't change it. "
+        "Instead, I set things up so every image on his device loaded upside down. "
+        "A week later my neighbor knocked and asked if my internet was acting weird. I said it was perfect. "
+        "Another week later he bought a brand new laptop. The pictures were upside down again, of course. "
+        "Yesterday he showed up with a cake and confessed everything. Now we split the internet bill. "
+        "Would you have forgiven him?"
+    ),
+)
+
+DEMO_POST_RU = Post(
     id="demo", subreddit="TrueOffMyChest", score=24100, url="",
     title="Сосед три года воровал мой Wi-Fi, и я решил ему отомстить",
     body=(
@@ -99,6 +113,7 @@ def main(argv: list[str] | None = None) -> None:
             cfg["paths"]["backgrounds_dir"] = str(_demo_background(out / "bg" / "mandelbrot.mp4").parent)
         cfg["text"]["adapter"] = "none"
         cfg["tts"]["engine"] = args.tts
-        for p in pipeline.produce(DEMO_POST, adapt.adapt(DEMO_POST, cfg), cfg, Store(cfg["paths"]["db"]),
+        post = DEMO_POST_RU if cfg["text"]["language"] == "ru" else DEMO_POST_EN
+        for p in pipeline.produce(post, adapt.adapt(post, cfg), cfg, Store(cfg["paths"]["db"]),
                                   random.Random(7)):
             print(p)

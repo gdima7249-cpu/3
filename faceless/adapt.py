@@ -12,21 +12,22 @@ import json
 
 from .models import Post, Script
 
-SYSTEM_PROMPT = """Ты сценарист вертикальных роликов (YouTube Shorts / TikTok) в жанре «истории с Reddit».
-Тебе дают пост (и, если это вопрос, лучшие ответы). Сделай из него сценарий для озвучки на языке: {language}.
+SYSTEM_PROMPT = """You write scripts for vertical short videos (YouTube Shorts / TikTok) in the "Reddit stories" genre.
+You get a Reddit post (and, for question threads, the top answers). Turn it into a voice-over script.
+Write every field in this language: {language}.
 
-Задача — чтобы живой зритель досмотрел до конца:
-- title: первая фраза ролика и текст карточки. Это хук: интрига или конфликт за 1–2 секунды, до 90 символов.
-  Не кликбейт-ложь: хук должен честно отражать историю.
-- body: пересказ от первого лица (для вопросов — «Пользователи Reddit ответили…» и самые сильные ответы по очереди).
-  Короткие предложения, разговорный язык, без канцелярита. Сохрани факты и развязку, убери повторы, ссылки,
-  приписки EDIT/UPDATE. Числа и сокращения пиши словами так, как их надо произносить. Последняя фраза —
-  вопрос к зрителю или яркая развязка. Длина body — не больше {max_chars} символов.
-- description: 1–2 предложения для описания ролика + 3–5 хэштегов.
-- tags: 5–10 тегов без «#».
-- quality: от 1 до 10 — насколько эта история удержит зрителя (сюжет, эмоция, развязка).
-  Ставь низко скучным, незавершённым, слишком локальным или токсичным историям.
-Не добавляй выдуманных деталей, оскорблений и персональных данных реальных людей."""
+The goal is that a real viewer watches to the very end:
+- title: the first line of the video and the text on the title card. It is the hook: intrigue or conflict
+  within 1-2 seconds, at most 90 characters. No dishonest clickbait: the hook must reflect the actual story.
+- body: retell the story in the first person (for question threads: "Reddit users answered..." and then the
+  strongest answers one by one). Short sentences, conversational tone, no filler. Keep the facts and the
+  ending; drop repetition, links and EDIT/UPDATE notes. Write numbers and abbreviations the way they should
+  be spoken. End with a question to the viewer or a strong payoff. The body must be at most {max_chars} characters.
+- description: 1-2 sentences for the video description plus 3-5 hashtags.
+- tags: 5-10 tags without "#".
+- quality: 1 to 10, how well this story will hold a viewer (plot, emotion, payoff). Score low for boring,
+  unresolved, overly local or toxic stories.
+Do not invent details, insults, or personal data about real people."""
 
 SCHEMA = {
     "type": "object",
@@ -43,11 +44,11 @@ SCHEMA = {
 
 
 def _post_as_text(post: Post) -> str:
-    parts = [f"Сабреддит: r/{post.subreddit}", f"Заголовок: {post.title}"]
+    parts = [f"Subreddit: r/{post.subreddit}", f"Title: {post.title}"]
     if post.body:
-        parts.append(f"Текст:\n{post.body}")
+        parts.append(f"Text:\n{post.body}")
     for i, comment in enumerate(post.comments, 1):
-        parts.append(f"Ответ {i}:\n{comment}")
+        parts.append(f"Answer {i}:\n{comment}")
     return "\n\n".join(parts)
 
 
@@ -106,5 +107,5 @@ def adapt(post: Post, cfg: dict) -> Script:
         title, body = _translate(title, lang), _translate(body, lang)
     elif mode != "none":
         raise ValueError(f"Неизвестный adapter: {mode}")
-    return Script(title=title, body=body, description=f"{title}\n\nИсточник: r/{post.subreddit}",
+    return Script(title=title, body=body, description=title,
                   tags=[post.subreddit.lower()])

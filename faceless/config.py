@@ -15,9 +15,9 @@ DEFAULTS: dict = {
         "min_score": 1500, "min_chars": 300, "max_chars": 5000,
         "top_comments": 4, "question_subreddits": ["AskReddit", "NoStupidQuestions"],
     },
-    "text": {"language": "ru", "adapter": "claude", "model": "claude-opus-5-5", "min_quality": 6},
+    "text": {"language": "en", "adapter": "claude", "model": "claude-opus-5-5", "min_quality": 6},
     "tts": {
-        "engine": "edge", "voices": ["ru-RU-DmitryNeural", "ru-RU-SvetlanaNeural"], "rate": "+12%",
+        "engine": "edge", "voices": ["en-US-ChristopherNeural", "en-US-AriaNeural", "en-US-GuyNeural", "en-US-JennyNeural"], "rate": "+12%",
         "elevenlabs_voice_ids": [], "elevenlabs_model": "eleven_multilingual_v2",
     },
     "video": {
@@ -26,11 +26,11 @@ DEFAULTS: dict = {
         "highlight_colors": ["&H0000F0FF", "&H0055FF55", "&H00FFD24D"],
         "music_volume": 0.07, "mirror_chance": 0.5,
     },
-    "schedule": {"timezone": "Europe/Moscow", "publish_times": ["09:30", "14:30", "19:30"]},
+    "schedule": {"timezone": "America/New_York", "publish_times": ["11:50", "16:50", "19:50"]},
     "youtube": {
         "enabled": True, "client_secrets": "secrets/client_secret.json",
         "token": "secrets/youtube_token.json", "category_id": "24",
-        "default_tags": ["reddit", "истории", "shorts"], "contains_synthetic_media": True,
+        "default_tags": ["reddit", "reddit stories", "askreddit", "shorts"], "contains_synthetic_media": True,
     },
     "tiktok": {"enabled": False, "privacy_level": "SELF_ONLY"},
 }

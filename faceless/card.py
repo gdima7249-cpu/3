@@ -23,6 +23,13 @@ def _font(kind: str, size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.load_default(size)
 
 
+def compact_number(n: int) -> str:
+    for div, suffix in ((1_000_000, "M"), (1_000, "K")):
+        if n >= div:
+            return f"{n / div:.1f}".rstrip("0").rstrip(".") + suffix
+    return str(n)
+
+
 def render_card(title: str, subreddit: str, out: Path, width: int = 940, accent: str = "#FF4500",
                 score: int | None = None) -> Path:
     pad, radius = 48, 36
@@ -45,7 +52,7 @@ def render_card(title: str, subreddit: str, out: Path, width: int = 940, accent:
         y += line_h
 
     if score is not None:
-        d.text((pad, y + 12), f"▲ {score:,}".replace(",", " "), font=meta_font, fill="#787C7E")
+        d.text((pad, y + 12), f"▲ {compact_number(score)}", font=meta_font, fill="#787C7E")
     out.parent.mkdir(parents=True, exist_ok=True)
     img.save(out)
     return out

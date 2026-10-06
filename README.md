@@ -1,11 +1,13 @@
 # faceless-factory
 
 Автоматическая фабрика вертикальных роликов (YouTube Shorts / TikTok) из историй Reddit.
+По умолчанию ролики на **английском** (самая большая аудитория и выше доход с просмотра);
+русский включается в `config.toml`: `language = "ru"` + русские голоса.
 Python + FFmpeg, без MoviePy (так в разы быстрее).
 
 ```
 Reddit (OAuth API) ─► фильтр + анти-дубли (SQLite)
-   ─► адаптация: Claude переводит и переписывает в сценарий с хуком, ставит оценку 1–10
+   ─► адаптация: Claude переписывает в сценарий с хуком (на нужном языке), ставит оценку 1–10
    ─► нарезка на части ≤ 60 с с клиффхэнгером «Продолжение в части 2»
    ─► озвучка Edge TTS / ElevenLabs с таймингами каждого слова
    ─► субтитры ASS: 1–3 слова, подсветка текущего слова, «поп»-анимация
@@ -49,7 +51,7 @@ python -m faceless status
 | Что | Где взять | Зачем |
 |---|---|---|
 | `REDDIT_CLIENT_ID/SECRET` | reddit.com/prefs/apps → «script» | официальный API; публичный `.json` с серверных IP часто отдаёт 403/429 |
-| `ANTHROPIC_API_KEY` | platform.claude.com | адаптация историй (`text.adapter = "claude"`); без ключа — `translate` или `none` |
+| `ANTHROPIC_API_KEY` | platform.claude.com | адаптация историй (`text.adapter = "claude"`); без ключа — `none` (для английского перевод не нужен) |
 | `ELEVENLABS_API_KEY` | elevenlabs.io | если нужен голос лучше Edge TTS (`tts.engine = "elevenlabs"`) |
 | `secrets/client_secret.json` | Google Cloud Console → YouTube Data API v3 → OAuth client «Desktop» | загрузка в YouTube |
 | `TIKTOK_ACCESS_TOKEN` | developers.tiktok.com, scope `video.publish` | загрузка в TikTok |
