@@ -70,8 +70,9 @@ def main(argv: list[str] | None = None) -> None:
     pb.add_argument("--dry-run", action="store_true")
 
     sub.add_parser("setup", help="пошаговая настройка: ключи, файл Google, вход в YouTube")
-    bg = sub.add_parser("add-background", help="скачать фоновое видео по прямой ссылке")
-    bg.add_argument("url")
+    bg = sub.add_parser("add-background", help="добавить фон: ссылка на видео или файл, залитый на сервер")
+    bg.add_argument("source", help="прямая ссылка (Pexels, Google Диск, Dropbox) или путь к файлу, напр. /tmp/video.mp4")
+    bg.add_argument("--keep-source", action="store_true", help="не удалять исходный файл с сервера")
     sub.add_parser("auth-youtube", help="однократная авторизация YouTube (OAuth)")
     sub.add_parser("status", help="последние ролики и статус публикаций")
 
@@ -107,7 +108,7 @@ def main(argv: list[str] | None = None) -> None:
     elif args.cmd == "add-background":
         from . import setup_wizard
         try:
-            print("Сохранено:", setup_wizard.add_background(args.url, cfg))
+            print("Сохранено:", setup_wizard.add_background(args.source, cfg, args.keep_source))
         except Exception as e:
             raise SystemExit(f"Не получилось скачать: {e}")
     elif args.cmd == "auth-youtube":

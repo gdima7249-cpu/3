@@ -154,10 +154,47 @@ def _setup_telegram(root: Path, env: dict, env_path: Path) -> None:
     print("Telegram подключён ✔" + ("" if sent else " (тестовое сообщение не ушло — проверьте позже)"))
 
 
-def add_background(url: str, cfg: dict) -> Path:
-    """Скачивает видео по прямой ссылке (Pexels, Pixabay, свой облачный диск…) в папку фонов."""
+def direct_link(url: str) -> str:
+    """Превращает ссылки «поделиться» из Google Drive и Dropbox в прямые ссылки на файл."""
+    m = re.search(r"drive\.google\.com/file/d/([\w-]+)", url) or re.search(r"drive\.google\.com/open\?id=([\w-]+)", url)
+    if m:
+        return f"https://drive.google.com/uc?export=download&id={m.group(1)}"
+    if "dropbox.com" in url:
+        return re.sub(r"[?&]dl=0", "", url) + ("&" if "?" in url and "dl=0" not in url else "?") + "dl=1" \
+            if "dl=1" not in url else url
+    return url
+
+
+def add_background(source: str, cfg: dict, keep_source: bool = False) -> Path:
+    """Добавляет фон: файл с сервера (залитый с вашего устройства) или прямая ссылка (Pexels, Диск, Dropbox)."""
     folder = Path(cfg["paths"]["backgrounds_dir"])
     folder.mkdir(parents=True, exist_ok=True)
+    local = Path(source).expanduser()
+    if not source.startswith(("http://", "https://")):
+        if not local.is_file():
+            raise ValueError(f"Файл не найден: {source}. Проверьте путь (после загрузки на сервер, например, /tmp/video.mp4).")
+        from . import media
+        try:
+            media.duration(local)
+        except Exception:
+            raise ValueError("Это не видео (или файл повреждён).")
+        name = re.sub(r"[^\w.-]+", "_", local.stem) + ".mp4"
+        out = folder / name
+        n = 1
+        while out.exists():
+            out = folder / f"{Path(name).stem}_{n}.mp4"
+            n += 1
+        # сразу сжимаем в папку фонов; оригинал с телефона/камеры может быть 4K и очень тяжёлым
+        result = shrink_background(local, dest=out)
+        if not keep_source and local.resolve().parent != folder.resolve():
+            try:
+                local.unlink()
+                print(f"  Копия на сервере {local} удалена (на вашем устройстве файл остался).")
+            except OSError:
+                print(f"  Копию на сервере можно удалить вручную: rm {local}")
+        return result
+
+    url = direct_link(source)
     name = Path(urlparse(url).path).name or "background"
     name = re.sub(r"[^\w.-]+", "_", name)
     if not name.lower().endswith((".mp4", ".mov", ".mkv", ".webm")):
@@ -189,11 +226,22 @@ def add_background(url: str, cfg: dict) -> Path:
     return shrink_background(out)
 
 
-def shrink_background(path: Path, max_side: int = 1280) -> Path:
-    """Сжимает фон до 720p без звука: в 5–20 раз меньше места и быстрее рендер на слабом сервере."""
+def shrink_background(path: Path, max_side: int = 1280, dest: Path | None = None) -> Path:
+    """Сжимает фон до 720p без звука: в 5–20 раз меньше места и быстрее рендер на слабом сервере.
+
+    Телефонные видео бывают повёрнуты метаданными (rotate) — ffmpeg применяет поворот сам.
+    Если указан dest, исходный файл не трогается, результат пишется в dest."""
     from . import media
 
     before = path.stat().st_size
+    if dest is not None:
+        print("  сжимаю под 720p без звука (на слабом сервере — примерно 1 минута на минуту видео)…")
+        media.run(["ffmpeg", "-y", "-i", str(path), "-an", "-vf",
+                   f"scale='if(gt(iw,ih),{max_side},-2)':'if(gt(iw,ih),-2,{max_side})'",
+                   "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-pix_fmt", "yuv420p",
+                   "-threads", "1", "-movflags", "+faststart", str(dest)])
+        print(f"  {before / 1e6:.0f} МБ → {dest.stat().st_size / 1e6:.0f} МБ")
+        return dest
     tmp = path.with_suffix(".small.mp4")
     print("  сжимаю под 720p (на слабом сервере 1–3 минуты)…")
     media.run(["ffmpeg", "-y", "-i", str(path), "-an", "-vf",
