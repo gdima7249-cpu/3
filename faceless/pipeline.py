@@ -208,7 +208,9 @@ def publish(cfg: dict, dry_run: bool = False) -> None:
     if cfg["tiktok"]["enabled"]:
         from . import tiktok
         targets.append(("tiktok", tiktok.upload, lambda r: r["publish_at"] <= now))
-    if cfg["telegram"]["enabled"]:
+    import os
+
+    if cfg["telegram"]["enabled"] or (os.environ.get("TELEGRAM_BOT_TOKEN") and os.environ.get("TELEGRAM_CHAT_ID")):
         from . import telegram
         targets.append(("telegram", telegram.upload, lambda r: r["publish_at"] <= now))
 

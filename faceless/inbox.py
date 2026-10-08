@@ -18,9 +18,16 @@ def story_id(title: str) -> str:
     return "inb-" + hashlib.sha1(title.strip().lower().encode()).hexdigest()[:10]
 
 
+_TITLE_LINE = re.compile(r"^[ \t]*(?:\*\*|#+[ \t]*)?TITLE[ \t]*[:：]", re.I | re.M)
+
+
 def parse(text: str) -> list[tuple[str, str]]:
-    """[(заголовок, текст), ...]; пустые и слишком короткие блоки пропускаются."""
+    """[(заголовок, текст), ...]; пустые и слишком короткие блоки пропускаются.
+
+    Истории разделяет строка «---» или просто новая строка, начинающаяся с «TITLE:» (Gemini часто забывает
+    разделители)."""
     out = []
+    text = _TITLE_LINE.sub(lambda m: "\n---\n" + m.group(0).lstrip(), text)
     for block in _SEP.split(text):
         lines = [ln.rstrip() for ln in block.strip().splitlines()]
         while lines and not lines[0].strip():

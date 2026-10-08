@@ -353,3 +353,12 @@ def test_telegram_build_text_and_sync(tmp_path, monkeypatch):
     assert any("Добавлено историй: 1" in m for m in sent) and any("Готовых роликов" in m for m in sent)
     assert (tmp_path / "tg_offset.txt").read_text() == "12"
     assert telegram.sync_inbox(cfg) == 0  # повторно те же сообщения не обрабатываются
+
+
+def test_inbox_parse_without_separators():
+    from faceless import inbox
+
+    text = ("TITLE: First\n" + "Some long enough story text here. " * 4 +
+            "\nTITLE: Second\n" + "More long enough story text here. " * 4 +
+            "\n**TITLE: Third**\n" + "And yet another story text here. " * 4)
+    assert [t for t, _ in inbox.parse(text)] == ["First", "Second", "Third"]

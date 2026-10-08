@@ -84,7 +84,10 @@ def _print_overview(cfg: dict) -> None:
     print(f"faceless {__version__}")
     print(f"  {mark(secrets.exists())} Файл Google (client_secret.json)")
     print(f"  {mark(token.exists())} Вход в YouTube")
-    print(f"  {mark(cfg['telegram']['enabled'])} Доставка роликов в Telegram")
+    import os
+
+    tg = bool(os.environ.get("TELEGRAM_BOT_TOKEN") and os.environ.get("TELEGRAM_CHAT_ID"))
+    print(f"  {mark(tg)} Telegram-бот подключён" + ("" if tg else "   (faceless setup: токен бота, затем напишите боту /start)"))
     left = pipeline.inbox_left(cfg)
     print(f"  {mark(left > 0 or adapt.llm_provider(cfg) is not None)} Источник историй: "
           f"ИИ {'подключён' if adapt.llm_provider(cfg) else 'не подключён'}, в inbox.txt ждут: {left}")
@@ -164,8 +167,13 @@ def main(argv: list[str] | None = None) -> None:
     elif args.cmd == "telegram-sync":
         from . import telegram
 
+        import os
+
+        if not (os.environ.get("TELEGRAM_BOT_TOKEN") and os.environ.get("TELEGRAM_CHAT_ID")):
+            raise SystemExit("Telegram не подключён: нет токена бота или номера чата. Запустите faceless setup, "
+                             "вставьте токен бота и напишите боту /start.")
         n = telegram.sync_inbox(cfg)
-        print(f"Добавлено историй из Telegram: {n}")
+        print(f"Добавлено историй из Telegram: {n}. (Ответ бота придёт вам в Telegram.)")
     elif args.cmd == "queue":
         store = Store(cfg["paths"]["db"])
         rows = store.queue()
@@ -274,7 +282,10 @@ def main(argv: list[str] | None = None) -> None:
         print("Токен сохранён в", cfg["youtube"]["token"])
     elif args.cmd == "ready":
         if args.publish:
-            ok = cfg["telegram"]["enabled"] or Path(cfg["youtube"]["token"]).exists()
+            import os
+
+            ok = (cfg["telegram"]["enabled"] or Path(cfg["youtube"]["token"]).exists()
+                  or bool(os.environ.get("TELEGRAM_BOT_TOKEN") and os.environ.get("TELEGRAM_CHAT_ID")))
         else:
             ok = (adapt.llm_provider(cfg) is not None or cfg["text"]["adapter"] == "none"
                   or pipeline.inbox_left(cfg) > 0)

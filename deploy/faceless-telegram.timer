@@ -1,9 +1,9 @@
 [Unit]
-Description=faceless: проверять Telegram на новые истории каждые 5 минут
+Description=faceless: проверять Telegram на новые истории каждые 2 минуты
 
 [Timer]
 OnBootSec=2min
-OnUnitActiveSec=5min
+OnUnitActiveSec=2min
 
 [Install]
 WantedBy=timers.target
