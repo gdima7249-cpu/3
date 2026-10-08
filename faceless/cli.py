@@ -41,6 +41,21 @@ DEMO_POST_RU = Post(
 )
 
 
+def post_from_text(text: str, post_id: str = "", subreddit: str = "stories") -> Post:
+    """Первая непустая строка — заголовок, остальное — текст истории."""
+    import hashlib
+
+    lines = [ln.rstrip() for ln in text.strip().splitlines()]
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    if not lines:
+        raise ValueError("Пустой текст")
+    title, body = lines[0].strip(), "\n".join(lines[1:]).strip()
+    from .reddit import clean_text
+    return Post(id=post_id or "txt-" + hashlib.sha1(text.encode()).hexdigest()[:8], subreddit=subreddit,
+                title=clean_text(title), body=clean_text(body), score=0, url="")
+
+
 def _demo_background(path: Path, seconds: int = 30) -> Path:
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -81,10 +96,11 @@ def main(argv: list[str] | None = None) -> None:
     mk.add_argument("-s", "--subreddit")
     mk.add_argument("--seed", type=int)
 
-    ff = sub.add_parser("make-file", help="собрать ролик из локального JSON (id, subreddit, title, body, comments)")
+    ff = sub.add_parser("make-file", help="собрать ролик из файла: .txt (1-я строка заголовок) или .json")
     ff.add_argument("path")
 
     sub.add_parser("candidates", help="показать подходящие посты, ничего не рендеря")
+    sub.add_parser("story", help="вставить историю вручную (заголовок и текст) и сделать из неё ролик")
 
     pb = sub.add_parser("publish", help="загрузить очередь на YouTube/TikTok")
     pb.add_argument("--dry-run", action="store_true")
@@ -109,11 +125,34 @@ def main(argv: list[str] | None = None) -> None:
     if args.cmd == "make":
         for p in pipeline.make(cfg, args.count, args.subreddit, args.seed):
             print(p)
+    elif args.cmd == "story":
+        print("Вставьте историю: первая строка — заголовок, дальше текст. Когда закончите, введите на отдельной")
+        print("строке слово КОНЕЦ и нажмите Enter. (Отмена: Ctrl+C)\n")
+        lines = []
+        try:
+            while True:
+                line = input("> " if not lines else "")
+                if line.strip().upper() in ("КОНЕЦ", "END"):
+                    break
+                lines.append(line)
+        except (KeyboardInterrupt, EOFError):
+            raise SystemExit("\nОтменено.")
+        try:
+            post = post_from_text("\n".join(lines), subreddit=input("Название сабреддита/источника (Enter — stories) > ").strip() or "stories")
+        except ValueError as e:
+            raise SystemExit(str(e))
+        store = Store(cfg["paths"]["db"])
+        for p in pipeline.produce(post, adapt.adapt(post, cfg), cfg, store, random.Random()):
+            print("Готово:", p)
     elif args.cmd == "make-file":
-        data = json.loads(Path(args.path).read_text(encoding="utf-8"))
-        post = Post(id=data.get("id", Path(args.path).stem), subreddit=data.get("subreddit", "stories"),
-                    title=data["title"], body=data.get("body", ""), score=data.get("score", 0),
-                    url=data.get("url", ""), comments=data.get("comments", []))
+        path = Path(args.path)
+        if path.suffix.lower() == ".txt":
+            post = post_from_text(path.read_text(encoding="utf-8"), post_id=path.stem)
+        else:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            post = Post(id=data.get("id", path.stem), subreddit=data.get("subreddit", "stories"),
+                        title=data["title"], body=data.get("body", ""), score=data.get("score", 0),
+                        url=data.get("url", ""), comments=data.get("comments", []))
         store = Store(cfg["paths"]["db"])
         for p in pipeline.produce(post, adapt.adapt(post, cfg), cfg, store, random.Random()):
             print(p)

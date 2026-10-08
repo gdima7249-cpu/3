@@ -30,6 +30,9 @@ def candidates(cfg: dict, store: Store, subreddit: str | None = None) -> list[Po
             posts += [p for p in reddit.fetch_posts(sub, cfg) if not store.seen(p.id)]
         except Exception as e:  # один сабреддит не должен ронять весь прогон
             log.warning("r/%s: %s", sub, e)
+            if any(code in str(e) for code in ("403", "401", "429")):
+                log.warning("Reddit не отдаёт данные без одобренного ключа. Свои истории можно добавлять "
+                            "командой: faceless story")
     posts.sort(key=lambda p: p.score, reverse=True)
     return posts
 

@@ -201,3 +201,12 @@ def test_wizard_rejects_misplaced_values():
     assert "sk-ant" in _check_value("ANTHROPIC_API_KEY", "abc123")
     assert _check_value("REDDIT_CLIENT_ID", "a1B2c3D4e5") is None
     assert _check_value("REDDIT_CLIENT_ID", "two words") is not None
+
+
+def test_post_from_text():
+    from faceless.cli import post_from_text
+
+    p = post_from_text("\n  My neighbor stole my Wi-Fi\n\nIt started in **2021**.\nEDIT: thanks!\nThen it got weird.\n")
+    assert p.title == "My neighbor stole my Wi-Fi"
+    assert "EDIT" not in p.body and "**" not in p.body and p.body.startswith("It started in 2021.")
+    assert p.id.startswith("txt-") and post_from_text("a\nb").id == post_from_text("a\nb").id
