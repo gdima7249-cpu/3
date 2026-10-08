@@ -72,41 +72,53 @@ def _paste_json() -> dict | None:
         return data
 
 
-def run(cfg: dict, config_path: str) -> None:
+def _step(n: int, total: int, title: str, todo: str) -> None:
+    print(f"\n{'=' * 60}\nШАГ {n} из {total}: {title}\n{'=' * 60}\n{todo}\n")
+
+
+def run(cfg: dict, config_path: str, with_keys: bool = False) -> None:
     root = Path(config_path).resolve().parent
+    total = 4 if with_keys else 3
     print("=== Настройка faceless ===")
-    print("Программа будет задавать вопросы по одному. После каждого ответа нажимайте Enter.")
-    print("Если ответа пока нет, просто нажмите Enter: вопрос пропустится, к нему можно вернуться позже")
-    print("повторным запуском `faceless setup`. Отменить всё: Ctrl+C.\n")
+    print("Программа ждёт ваш ввод в конце каждого вопроса (знак «>»). Это не зависание.")
+    print("Любой шаг можно пропустить, нажав Enter. Отменить всё: Ctrl+C.")
 
     cfg_file = root / "config.toml"
     if not cfg_file.exists() and (root / "config.example.toml").exists():
         shutil.copy(root / "config.example.toml", cfg_file)
-        print("Создан config.toml с настройками по умолчанию.\n")
+        print("Создан config.toml с настройками по умолчанию.")
 
     env_path = root / ".env"
     env = _read_env(env_path)
-    for n, (key, hint) in enumerate(ENV_KEYS, 1):
-        current = env.get(key, "")
-        shown = f" [сейчас: {current[:6]}…]" if current else ""
-        value = input(f"Вопрос {n} из {len(ENV_KEYS)}. {hint}{shown}\n(пусто + Enter = пропустить) > ").strip()
-        problem = _check_value(key, value)
-        while problem:
-            print(f"  ✖ {problem}")
-            value = input("  Попробуйте ещё раз или нажмите Enter, чтобы пропустить > ").strip()
-            problem = _check_value(key, value)
-        if value:
-            env[key] = value
-        print()
-    _write_env(env_path, env)
-    print(f"Ключи сохранены в {env_path}\n")
+    step = 0
 
+    if with_keys:
+        step += 1
+        _step(step, total, "Необязательные ключи (Claude, Reddit)", "Ключи нужны не всем. Если ключа нет, нажимайте Enter.")
+        for n, (key, hint) in enumerate(ENV_KEYS, 1):
+            current = env.get(key, "")
+            shown = f" [сейчас: {current[:6]}…]" if current else ""
+            value = input(f"Вопрос {n} из {len(ENV_KEYS)}. {hint}{shown}\n(пусто + Enter = пропустить) > ").strip()
+            problem = _check_value(key, value)
+            while problem:
+                print(f"  ✖ {problem}")
+                value = input("  Попробуйте ещё раз или нажмите Enter, чтобы пропустить > ").strip()
+                problem = _check_value(key, value)
+            if value:
+                env[key] = value
+            print()
+        _write_env(env_path, env)
+        print(f"Ключи сохранены в {env_path}")
+
+    step += 1
     secrets = root / cfg["youtube"]["client_secrets"]
+    _step(step, total, "Файл Google для YouTube",
+          "Нужен файл client_secret_....json, скачанный в Google Cloud (шаг 4.4 инструкции).\n"
+          "Если пока нет файла: нажмите Enter, и этот шаг пропустится.")
     if secrets.exists():
-        print(f"Файл Google ({secrets.name}) уже есть.")
-        replace = input("Заменить его? (y — да, Enter — нет) > ").strip().lower() == "y"
+        print(f"Файл Google ({secrets.name}) уже сохранён.")
+        replace = input("Заменить его? (y — да, Enter — оставить как есть) > ").strip().lower() == "y"
     else:
-        print("Теперь файл от Google Cloud (шаг 4 инструкции).")
         replace = True
     if replace:
         data = _paste_json()
@@ -114,12 +126,14 @@ def run(cfg: dict, config_path: str) -> None:
             secrets.parent.mkdir(parents=True, exist_ok=True)
             secrets.write_text(json.dumps(data), encoding="utf-8")
             secrets.chmod(0o600)
-            print("Сохранено.\n")
+            print("Сохранено ✔")
 
+    step += 1
+    _step(step, total, "Вход в YouTube", "Программа покажет ссылку. Откройте её в браузере на своём устройстве.")
     if secrets.exists():
         token = root / cfg["youtube"]["token"]
-        if token.exists() and input("YouTube уже подключён. Подключить заново? (y/Enter) > ").strip().lower() != "y":
-            pass
+        if token.exists() and input("YouTube уже подключён. Подключить заново? (y — да, Enter — нет) > ").strip().lower() != "y":
+            print("Оставляю как есть.")
         else:
             from . import youtube
             try:
@@ -130,8 +144,10 @@ def run(cfg: dict, config_path: str) -> None:
                 print("Частые причины: скопирован не весь адрес; прошло больше 5 минут; ваш Gmail не добавлен")
                 print("в Test users; файл не от «Desktop app». Запустите `faceless setup` ещё раз.")
     else:
-        print("Без файла Google загрузка в YouTube работать не будет — вернитесь к шагу 4 и запустите setup снова.")
+        print("Пропущено: нет файла Google. Ролики можно получать в Telegram и выкладывать вручную.")
 
+    step += 1
+    _step(step, total, "Telegram (ролики будут приходить вам в чат)", "Нужен токен нового бота от @BotFather. Нет токена: Enter.")
     _setup_telegram(root, env, env_path)
 
     bgs = [p for p in (root / cfg["paths"]["backgrounds_dir"]).glob("*") if p.suffix.lower() in {".mp4", ".mov", ".mkv", ".webm"}]
@@ -142,8 +158,7 @@ def run(cfg: dict, config_path: str) -> None:
 def _setup_telegram(root: Path, env: dict, env_path: Path) -> None:
     from . import telegram
 
-    print("\n--- Telegram (по желанию) ---")
-    print("Бот будет присылать вам готовые ролики с названием и описанием — выложить с телефона за 30 секунд.")
+    print("Бот будет присылать вам готовые ролики с названием и описанием, выложить с телефона можно за 30 секунд.")
     if env.get("TELEGRAM_BOT_TOKEN") and env.get("TELEGRAM_CHAT_ID"):
         if input("Telegram уже настроен. Перенастроить? (y/Enter) > ").strip().lower() != "y":
             return

@@ -69,7 +69,8 @@ def main(argv: list[str] | None = None) -> None:
     pb = sub.add_parser("publish", help="загрузить очередь на YouTube/TikTok")
     pb.add_argument("--dry-run", action="store_true")
 
-    sub.add_parser("setup", help="пошаговая настройка: ключи, файл Google, вход в YouTube")
+    st = sub.add_parser("setup", help="пошаговая настройка: файл Google, вход в YouTube, Telegram")
+    st.add_argument("--keys", action="store_true", help="спросить и необязательные ключи (Claude, Reddit)")
     bg = sub.add_parser("add-background", help="добавить фон: ссылка на видео или файл, залитый на сервер")
     bg.add_argument("source", help="прямая ссылка (Pexels, Google Диск, Dropbox) или путь к файлу, напр. /tmp/video.mp4")
     bg.add_argument("--keep-source", action="store_true", help="не удалять исходный файл с сервера")
@@ -105,7 +106,7 @@ def main(argv: list[str] | None = None) -> None:
     elif args.cmd == "setup":
         from . import setup_wizard
         try:
-            setup_wizard.run(cfg, args.config)
+            setup_wizard.run(cfg, args.config, args.keys)
         except (KeyboardInterrupt, EOFError):
             raise SystemExit("\nНастройка прервана. Всё, что вы успели ввести, сохранено. Запустите `faceless setup` снова, когда будете готовы.")
     elif args.cmd == "add-background":
