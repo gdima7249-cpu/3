@@ -64,7 +64,7 @@ def produce(post: Post, script: Script, cfg: dict, store: Store, rng: random.Ran
 
         title = script.title if part.total == 1 else ph["meta_part"].format(
             title=script.title, i=part.index, n=part.total)
-        desc = f"{script.description}\n\n" + ph["source"].format(sub=post.subreddit)
+        desc = f"{script.description}\n\n" + (ph["source"].format(sub=post.subreddit) if post.subreddit else ph["fiction"])
         store.add_video(post_id=post.id, part=part.index, parts=part.total, path=out, title=title,
                         description=desc, tags=script.tags, publish_at=slot)
         if not cfg["paths"]["keep_work_files"]:
@@ -74,9 +74,7 @@ def produce(post: Post, script: Script, cfg: dict, store: Store, rng: random.Ran
     return outputs
 
 
-def make(cfg: dict, count: int, subreddit: str | None = None, seed: int | None = None) -> list[Path]:
-    store = Store(cfg["paths"]["db"])
-    rng = random.Random(seed)
+def _make_from_posts(cfg: dict, store: Store, rng: random.Random, count: int, subreddit: str | None) -> list[Path]:
     made: list[Path] = []
     for post in candidates(cfg, store, subreddit):
         if len(made) >= count:
@@ -97,6 +95,64 @@ def make(cfg: dict, count: int, subreddit: str | None = None, seed: int | None =
         except Exception:
             log.exception("Сборка %s упала", post.id)
             store.mark_post(post.id, post.subreddit, post.title, "failed")
+    return made
+
+
+def _make_generated(cfg: dict, store: Store, rng: random.Random, count: int) -> list[Path]:
+    """Истории, придуманные ИИ: оригинальные, без привязки к чужим постам и без выдуманных «источников»."""
+    import hashlib
+
+    made: list[Path] = []
+    errors = 0
+    for _ in range(count * 3):  # запас на истории с низкой оценкой
+        if len(made) >= count or errors >= 2:
+            break
+        try:
+            script = adapt.generate_story(cfg, store.recent_titles("gen-"), rng)
+        except Exception as e:
+            errors += 1
+            log.warning("Не удалось придумать историю: %s", e)
+            continue
+        post = Post(id="gen-" + hashlib.sha1(script.title.encode()).hexdigest()[:10], subreddit="",
+                    title=script.title, body=script.body, score=0, url="")
+        if store.seen(post.id) or script.quality < cfg["text"]["min_quality"]:
+            log.info("Пропуск придуманной истории «%s» (повтор или оценка %d)", script.title, script.quality)
+            continue
+        try:
+            made += produce(post, script, cfg, store, rng)
+            store.mark_post(post.id, "", script.title, "done")
+        except Exception:
+            log.exception("Сборка «%s» упала", script.title)
+            store.mark_post(post.id, "", script.title, "failed")
+    return made
+
+
+def make(cfg: dict, count: int, subreddit: str | None = None, seed: int | None = None, fill: bool = False) -> list[Path]:
+    """fill=True: не больше, чем нужно, чтобы очередь готовых роликов дошла до autopilot.queue_target."""
+    store = Store(cfg["paths"]["db"])
+    if fill:
+        made: list[Path] = []
+        for _ in range(8):  # страховка от бесконечного цикла, если истории не получаются
+            if store.undelivered() >= cfg["autopilot"]["queue_target"]:
+                break
+            new = _make(cfg, store, 1, subreddit, random.Random(seed))
+            if not new:
+                break
+            made += new
+        return made
+    return _make(cfg, store, count, subreddit, random.Random(seed))
+
+
+def _make(cfg: dict, store: Store, count: int, subreddit: str | None, rng: random.Random) -> list[Path]:
+    import os
+
+    source = cfg["stories"]["source"]
+    made: list[Path] = []
+    # Reddit с 2025 года отдаёт данные только по одобренному ключу; без ключей в режиме auto его не трогаем
+    if source == "reddit" or (source == "auto" and os.environ.get("REDDIT_CLIENT_ID")):
+        made += _make_from_posts(cfg, store, rng, count, subreddit)
+    if len(made) < count and source in ("auto", "generate"):
+        made += _make_generated(cfg, store, rng, count - len(made))
     return made
 
 

@@ -94,6 +94,7 @@ def main(argv: list[str] | None = None) -> None:
     mk = sub.add_parser("make", help="собрать N роликов из свежих постов")
     mk.add_argument("-n", "--count", type=int, default=1)
     mk.add_argument("-s", "--subreddit")
+    mk.add_argument("--fill", action="store_true", help="пополнить очередь до autopilot.queue_target (для автопилота)")
     mk.add_argument("--seed", type=int)
 
     ff = sub.add_parser("make-file", help="собрать ролик из файла: .txt (1-я строка заголовок) или .json")
@@ -112,6 +113,8 @@ def main(argv: list[str] | None = None) -> None:
     bg.add_argument("--keep-source", action="store_true", help="не удалять исходный файл с сервера")
     sub.add_parser("auth-youtube", help="однократная авторизация YouTube (OAuth)")
     sub.add_parser("status", help="последние ролики и статус публикаций")
+    rd = sub.add_parser("ready", help="проверка готовности для автопилота (код 0 — готово)")
+    rd.add_argument("--publish", action="store_true", help="проверить готовность к публикации, а не к сборке")
 
     dm = sub.add_parser("demo", help="офлайн-демо: тишина вместо голоса, сгенерированный фон")
     dm.add_argument("--tts", default="silent", choices=["silent", "edge", "elevenlabs"])
@@ -123,8 +126,22 @@ def main(argv: list[str] | None = None) -> None:
     cfg = load_config(args.config)
 
     if args.cmd == "make":
-        for p in pipeline.make(cfg, args.count, args.subreddit, args.seed):
+        from . import telegram
+
+        try:
+            made = pipeline.make(cfg, args.count, args.subreddit, args.seed, args.fill)
+        except Exception as e:
+            telegram.notify(f"⚠️ faceless: сборка роликов упала: {e}")
+            raise
+        for p in made:
             print(p)
+        if not made and args.fill and Store(cfg["paths"]["db"]).undelivered() >= cfg["autopilot"]["queue_target"]:
+            print("Очередь уже заполнена, новых роликов не нужно.")
+        elif not made:
+            msg = ("Не удалось собрать ни одного ролика. Проверьте ключ Gemini/Claude "
+                   "(faceless setup --keys) и журнал: journalctl -u faceless-make -n 50")
+            telegram.notify("⚠️ faceless: " + msg)
+            raise SystemExit(msg)
     elif args.cmd == "story":
         print("Вставьте историю: первая строка — заголовок, дальше текст. Когда закончите, введите на отдельной")
         print("строке слово КОНЕЦ и нажмите Enter. (Отмена: Ctrl+C)\n")
@@ -178,6 +195,12 @@ def main(argv: list[str] | None = None) -> None:
         from . import youtube
         youtube.credentials(cfg, interactive=True)
         print("Токен сохранён в", cfg["youtube"]["token"])
+    elif args.cmd == "ready":
+        if args.publish:
+            ok = cfg["telegram"]["enabled"] or Path(cfg["youtube"]["token"]).exists()
+        else:
+            ok = adapt.llm_provider(cfg) is not None or cfg["text"]["adapter"] == "none"
+        raise SystemExit(0 if ok else 1)
     elif args.cmd == "status":
         _print_overview(cfg)
         rows = Store(cfg["paths"]["db"]).videos()

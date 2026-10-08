@@ -20,7 +20,7 @@ def test_split_parts_respects_limit_and_adds_cliffhanger():
     parts = split_parts(Script(title="Hook?", body=body), max_seconds=60)
     assert len(parts) > 1
     for p in parts:
-        assert estimate_seconds(p.title + p.body) <= 60 + 5
+        assert estimate_seconds(p.title + p.body) <= 60 * 1.1 + 1
     assert parts[0].title == "Hook? Part 1." and parts[1].title.startswith("Part 2.")
     assert parts[0].body.endswith("Part 2 is up next.")
     assert "up next" not in parts[-1].body

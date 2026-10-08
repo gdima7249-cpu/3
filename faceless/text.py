@@ -10,10 +10,10 @@ CHARS_PER_SECOND = 15.0  # средний темп нейроголоса с rat
 PHRASES = {
     "en": {"part_first": "{title} Part {i}.", "part_next": "Part {i}. {title}",
            "to_be_continued": " Part {n} is up next.", "meta_part": "{title} (part {i}/{n})",
-           "source": "Story: r/{sub}"},
+           "source": "Story: r/{sub}", "fiction": "This is a work of fiction."},
     "ru": {"part_first": "{title} Часть {i}.", "part_next": "Часть {i}. {title}",
            "to_be_continued": " Продолжение в части {n}.", "meta_part": "{title} (часть {i}/{n})",
-           "source": "История: r/{sub}"},
+           "source": "История: r/{sub}", "fiction": "Это вымышленная история."},
 }
 
 
@@ -40,7 +40,7 @@ def split_parts(script: Script, max_seconds: float, cps: float = CHARS_PER_SECON
     """
     sentences = split_sentences(script.body)
     overhead = estimate_seconds(script.title, cps) + 3.0  # заголовок + «Part N…» / «Part N+1 is up next»
-    budget = max(max_seconds - overhead, 10.0)
+    budget = max(max_seconds - overhead, 10.0) * 1.1  # допуск 10%: оценка длины грубая, а Shorts терпят до 3 минут
     total = estimate_seconds(script.body, cps)
     n = max(1, -(-int(total * 10) // int(budget * 10)))  # ceil без float-погрешностей
     target = total / n

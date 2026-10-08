@@ -9,15 +9,16 @@ from urllib.parse import urlparse
 
 import requests
 
+GEMINI_KEY = ("GEMINI_API_KEY",
+              "Ключ Gemini (его делает бесплатно Google AI Studio: aistudio.google.com/apikey, кнопка Create API key).\n"
+              "  Этим ключом программа сама придумывает истории. Скопируйте ключ целиком.")
 ENV_KEYS = [
-    ("ANTHROPIC_API_KEY", "Ключ Claude (Anthropic) — переписывает истории с цепляющим началом.\n"
-                          "  Нет ключа — нажмите Enter, истории пойдут как есть."),
-    ("GEMINI_API_KEY", "Ключ Gemini из Google AI Studio (aistudio.google.com/apikey): переписывает истории.\n"
-                       "  Подписка Gemini для этого не подходит, нужен именно такой ключ. Нет ключа: Enter."),
-    ("REDDIT_CLIENT_ID", "Reddit client id — нужен, только если Reddit не отдаёт посты без ключа.\n"
-                         "  Сначала попробуйте без него: нажмите Enter."),
-    ("REDDIT_CLIENT_SECRET", "Reddit secret (Enter — пропустить)"),
-    ("REDDIT_USERNAME", "Ваш ник на Reddit, без u/ (нужен Reddit для подписи запросов; Enter — пропустить)"),
+    ("ANTHROPIC_API_KEY", "Ключ Claude (Anthropic): пишет тексты лучше Gemini, но платный.\n"
+                          "  Нет ключа: Enter."),
+    ("REDDIT_CLIENT_ID", "Reddit client id (нужен, только если Reddit одобрил вам доступ к API).\n"
+                         "  Нет: Enter."),
+    ("REDDIT_CLIENT_SECRET", "Reddit secret (Enter: пропустить)"),
+    ("REDDIT_USERNAME", "Ваш ник на Reddit, без u/ (Enter: пропустить)"),
 ]
 
 
@@ -83,6 +84,20 @@ def _step(n: int, total: int, title: str, todo: str) -> None:
     print(f"\n{'=' * 60}\nШАГ {n} из {total}: {title}\n{'=' * 60}\n{todo}\n")
 
 
+def _ask_key(env: dict, key: str, hint: str, n: int | None = None, total: int | None = None) -> None:
+    current = env.get(key, "")
+    shown = f" [сейчас: {current[:6]}…, Enter оставит как есть]" if current else ""
+    head = f"Вопрос {n} из {total}. " if n else ""
+    value = input(f"{head}{hint}{shown}\n(пусто + Enter = пропустить) > ").strip()
+    problem = _check_value(key, value)
+    while problem:
+        print(f"  ✖ {problem}")
+        value = input("  Попробуйте ещё раз или нажмите Enter, чтобы пропустить > ").strip()
+        problem = _check_value(key, value)
+    if value:
+        env[key] = value
+
+
 def run(cfg: dict, config_path: str, with_keys: bool = False) -> None:
     root = Path(config_path).resolve().parent
     total = 4 if with_keys else 3
@@ -97,31 +112,31 @@ def run(cfg: dict, config_path: str, with_keys: bool = False) -> None:
 
     env_path = root / ".env"
     env = _read_env(env_path)
-    step = 0
+    step = 1
+
+    _step(step, total, "Ключ Gemini (ИИ придумывает истории)",
+          "Без него автопилот не сможет писать истории. Ключ бесплатный.")
+    _ask_key(env, *GEMINI_KEY)
+    _write_env(env_path, env)
 
     if with_keys:
         step += 1
-        _step(step, total, "Необязательные ключи (Claude, Reddit)", "Ключи нужны не всем. Если ключа нет, нажимайте Enter.")
+        _step(step, total, "Необязательные ключи (Claude, Reddit)", "Нужны не всем. Если ключа нет, нажимайте Enter.")
         for n, (key, hint) in enumerate(ENV_KEYS, 1):
-            current = env.get(key, "")
-            shown = f" [сейчас: {current[:6]}…]" if current else ""
-            value = input(f"Вопрос {n} из {len(ENV_KEYS)}. {hint}{shown}\n(пусто + Enter = пропустить) > ").strip()
-            problem = _check_value(key, value)
-            while problem:
-                print(f"  ✖ {problem}")
-                value = input("  Попробуйте ещё раз или нажмите Enter, чтобы пропустить > ").strip()
-                problem = _check_value(key, value)
-            if value:
-                env[key] = value
+            _ask_key(env, key, hint, n, len(ENV_KEYS))
             print()
         _write_env(env_path, env)
-        print(f"Ключи сохранены в {env_path}")
+
+    step += 1
+    _step(step, total, "Telegram: ролики будут приходить вам в чат",
+          "Нужен токен нового бота от @BotFather. Нет токена: Enter.")
+    _setup_telegram(root, env, env_path)
 
     step += 1
     secrets = root / cfg["youtube"]["client_secrets"]
-    _step(step, total, "Файл Google для YouTube",
-          "Нужен файл client_secret_....json, скачанный в Google Cloud (шаг 4.4 инструкции).\n"
-          "Если пока нет файла: введите - (минус) и нажмите Enter, шаг пропустится.")
+    _step(step, total, "YouTube (по желанию)",
+          "Автозагрузка на YouTube заработает после проверки проекта Google (см. ИНСТРУКЦИЯ.md, шаг 9).\n"
+          "Нужен файл client_secret_....json из Google Cloud. Нет файла: введите - (минус) и Enter.")
     if secrets.exists():
         print(f"Файл Google ({secrets.name}) уже сохранён.")
         replace = input("Заменить его? (y — да, Enter — оставить как есть) > ").strip().lower() == "y"
@@ -134,9 +149,6 @@ def run(cfg: dict, config_path: str, with_keys: bool = False) -> None:
             secrets.write_text(json.dumps(data), encoding="utf-8")
             secrets.chmod(0o600)
             print("Сохранено ✔")
-
-    step += 1
-    _step(step, total, "Вход в YouTube", "Программа покажет ссылку. Откройте её в браузере на своём устройстве.")
     if secrets.exists():
         token = root / cfg["youtube"]["token"]
         if token.exists() and input("YouTube уже подключён. Подключить заново? (y — да, Enter — нет) > ").strip().lower() != "y":
@@ -150,16 +162,17 @@ def run(cfg: dict, config_path: str, with_keys: bool = False) -> None:
                 print(f"\nНе получилось подключить YouTube: {e}")
                 print("Частые причины: скопирован не весь адрес; прошло больше 5 минут; ваш Gmail не добавлен")
                 print("в Test users; файл не от «Desktop app». Запустите `faceless setup` ещё раз.")
+
+    env = _read_env(env_path)
+    print("\n" + "=" * 60 + "\nИТОГ\n" + "=" * 60)
+    print(f"  {'✔' if env.get('GEMINI_API_KEY') or env.get('ANTHROPIC_API_KEY') else '✖'} ИИ для историй (Gemini/Claude)")
+    print(f"  {'✔' if env.get('TELEGRAM_BOT_TOKEN') else '✖'} Telegram")
+    print(f"  {'✔' if (root / cfg['youtube']['token']).exists() else '–'} YouTube (по желанию)")
+    if env.get("GEMINI_API_KEY") or env.get("ANTHROPIC_API_KEY"):
+        print("\nАвтопилот включён и сам пополняет очередь каждые 6 часов. Первую порцию можно собрать сразу:")
+        print("  faceless autopilot run")
     else:
-        print("Пропущено: нет файла Google. Ролики можно получать в Telegram и выкладывать вручную.")
-
-    step += 1
-    _step(step, total, "Telegram (ролики будут приходить вам в чат)", "Нужен токен нового бота от @BotFather. Нет токена: Enter.")
-    _setup_telegram(root, env, env_path)
-
-    bgs = [p for p in (root / cfg["paths"]["backgrounds_dir"]).glob("*") if p.suffix.lower() in {".mp4", ".mov", ".mkv", ".webm"}]
-    print(f"\nФоновых видео: {len(bgs)}." + ("" if bgs else " Добавьте: faceless add-background ССЫЛКА"))
-    print("\nГотово. Пробный ролик: faceless make -n 1")
+        print("\nБез ключа ИИ автопилот ждёт. Добавьте ключ: faceless setup")
 
 
 def _setup_telegram(root: Path, env: dict, env_path: Path) -> None:

@@ -43,8 +43,8 @@ def render_card(title: str, subreddit: str, out: Path, width: int = 940, accent:
     d.rounded_rectangle((0, 0, width - 1, height - 1), radius=radius, fill="white")
 
     d.ellipse((pad, pad, pad + 70, pad + 70), fill=accent)
-    d.text((pad + 35, pad + 35), "r/", font=_font("bold", 34), fill="white", anchor="mm")
-    d.text((pad + 92, pad + 35), f"r/{subreddit}", font=meta_font, fill="#1A1A1B", anchor="lm")
+    d.text((pad + 35, pad + 35), "r/" if subreddit else "S", font=_font("bold", 34), fill="white", anchor="mm")
+    d.text((pad + 92, pad + 35), f"r/{subreddit}" if subreddit else "Storytime", font=meta_font, fill="#1A1A1B", anchor="lm")
 
     y = pad + 70 + 24
     for line in lines:

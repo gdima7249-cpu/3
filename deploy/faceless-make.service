@@ -1,11 +1,13 @@
 [Unit]
-Description=faceless: собрать новые ролики
+Description=faceless: пополнить очередь роликов
 After=network-online.target
 
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/faceless/app
-ExecStart=/opt/faceless/app/.venv/bin/python -m faceless make --count 3
+# Пока нет ключа Gemini/Claude, запуск тихо пропускается (не ошибка)
+ExecCondition=/opt/faceless/app/.venv/bin/python -m faceless ready
+ExecStart=/opt/faceless/app/.venv/bin/python -m faceless make --fill
 User=faceless
 # Telegram-бот на этом же сервере всегда в приоритете: рендер получает CPU/диск по остаточному принципу
 Nice=15

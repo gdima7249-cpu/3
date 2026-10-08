@@ -62,27 +62,22 @@ class AdapterRefused(RuntimeError):
     pass
 
 
-def adapt_claude(post: Post, cfg: dict) -> Script:
+def _claude_json(cfg: dict, system: str, user: str, what: str) -> dict:
     import anthropic
 
     client = anthropic.Anthropic()
-    max_chars = int(cfg["video"]["max_part_seconds"] * 15 * 3)  # ~15 символов/сек, до трёх частей
     response = client.beta.messages.create(
         model=cfg["text"]["model"],
         max_tokens=16000,
         betas=["server-side-fallback-2026-07-01"],
         fallbacks="default",
         output_config={"effort": "medium", "format": {"type": "json_schema", "schema": SCHEMA}},
-        system=SYSTEM_PROMPT.format(language=cfg["text"]["language"], max_chars=max_chars),
-        messages=[{"role": "user", "content": _post_as_text(post)}],
+        system=system,
+        messages=[{"role": "user", "content": user}],
     )
     if response.stop_reason == "refusal":
-        raise AdapterRefused(f"Claude отказался адаптировать пост {post.id}")
-    text = next(b.text for b in response.content if b.type == "text")
-    data = json.loads(text)
-    return Script(title=data["title"].strip(), body=data["body"].strip(),
-                  description=data["description"].strip(), tags=data["tags"],
-                  quality=int(data["quality"]))
+        raise AdapterRefused(f"Claude отказался: {what}")
+    return json.loads(next(b.text for b in response.content if b.type == "text"))
 
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
@@ -98,40 +93,115 @@ def _gemini_schema(schema: dict) -> dict:
     return out
 
 
-def adapt_gemini(post: Post, cfg: dict) -> Script:
+def _gemini_json(cfg: dict, system: str, user: str, what: str, temperature: float = 0.8) -> dict:
+    import time
+
     import requests
 
-    max_chars = int(cfg["video"]["max_part_seconds"] * 15 * 3)
     body = {
-        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT.format(language=cfg["text"]["language"], max_chars=max_chars)}]},
-        "contents": [{"role": "user", "parts": [{"text": _post_as_text(post)}]}],
+        "systemInstruction": {"parts": [{"text": system}]},
+        "contents": [{"role": "user", "parts": [{"text": user}]}],
         "generationConfig": {"responseMimeType": "application/json", "responseSchema": _gemini_schema(SCHEMA),
-                             "temperature": 0.8},
+                             "temperature": temperature},
     }
-    last = None
-    for attempt in range(3):
-        resp = requests.post(GEMINI_URL.format(model=cfg["text"]["gemini_model"]), json=body, timeout=120,
-                             headers={"x-goog-api-key": os.environ["GEMINI_API_KEY"]})
-        if resp.status_code in (429, 500, 503):  # бесплатный тариф: упёрлись в лимит или сервис занят
-            last = f"{resp.status_code}"
-            import time
-            time.sleep(10 * (attempt + 1))
-            continue
-        if resp.status_code >= 400:
+    models = cfg["text"].get("gemini_models") or [cfg["text"].get("gemini_model", "gemini-flash-latest")]
+    last = "нет ответа"
+    for rnd in range(3):  # три круга по всем моделям, с паузами между кругами
+        for model in models:
             try:
-                msg = resp.json()["error"]["message"]
-            except Exception:
-                msg = resp.text[:200]
-            raise RuntimeError(f"Gemini {resp.status_code}: {msg}")
-        data = resp.json()
-        cands = data.get("candidates") or []
-        if not cands or not cands[0].get("content", {}).get("parts"):
-            reason = (data.get("promptFeedback") or {}).get("blockReason") or (cands[0].get("finishReason") if cands else "нет ответа")
-            raise AdapterRefused(f"Gemini не вернул текст для {post.id}: {reason}")
-        out = json.loads("".join(p.get("text", "") for p in cands[0]["content"]["parts"]))
-        return Script(title=out["title"].strip(), body=out["body"].strip(), description=out["description"].strip(),
-                      tags=list(out["tags"]), quality=int(out["quality"]))
-    raise RuntimeError(f"Gemini: лимит запросов или сервис занят ({last}). Повторите позже.")
+                resp = requests.post(GEMINI_URL.format(model=model), json=body, timeout=(10, 60),
+                                     headers={"x-goog-api-key": os.environ["GEMINI_API_KEY"]})
+            except requests.RequestException as e:  # таймаут или обрыв: пробуем следующую модель
+                last = f"{model}: {type(e).__name__}"
+                continue
+            if resp.status_code in (429, 500, 503, 404):  # лимит бесплатного тарифа, перегрузка, модель снята
+                last = f"{model}: {resp.status_code}"
+                continue
+            if resp.status_code >= 400:
+                try:
+                    msg = resp.json()["error"]["message"]
+                except Exception:
+                    msg = resp.text[:200]
+                raise RuntimeError(f"Gemini {resp.status_code}: {msg}")
+            data = resp.json()
+            cands = data.get("candidates") or []
+            if not cands or not cands[0].get("content", {}).get("parts"):
+                reason = (data.get("promptFeedback") or {}).get("blockReason") or (cands[0].get("finishReason") if cands else "нет ответа")
+                last = f"{model}: {reason}"
+                continue
+            try:
+                return json.loads("".join(p.get("text", "") for p in cands[0]["content"]["parts"]))
+            except ValueError:
+                last = f"{model}: обрезанный ответ"
+                continue
+        if rnd < 2:
+            time.sleep(20 * (rnd + 1))
+    raise RuntimeError(f"Gemini недоступен или лимит исчерпан ({last}). Повторю позже.")
+
+
+def _to_script(data: dict) -> Script:
+    return Script(title=data["title"].strip(), body=data["body"].strip(), description=data["description"].strip(),
+                  tags=list(data["tags"]), quality=int(data["quality"]))
+
+
+def _max_chars(cfg: dict) -> int:
+    return int(cfg["video"]["max_part_seconds"] * 15 * 3)  # ~15 символов/сек, до трёх частей
+
+
+def adapt_claude(post: Post, cfg: dict) -> Script:
+    system = SYSTEM_PROMPT.format(language=cfg["text"]["language"], max_chars=_max_chars(cfg))
+    return _to_script(_claude_json(cfg, system, _post_as_text(post), f"пост {post.id}"))
+
+
+def adapt_gemini(post: Post, cfg: dict) -> Script:
+    system = SYSTEM_PROMPT.format(language=cfg["text"]["language"], max_chars=_max_chars(cfg))
+    return _to_script(_gemini_json(cfg, system, _post_as_text(post), f"пост {post.id}"))
+
+
+def llm_provider(cfg: dict) -> str | None:
+    """Чем писать тексты: Claude, если есть ключ, иначе Gemini, иначе никак."""
+    pref = cfg["text"]["adapter"]
+    have_claude = bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"))
+    have_gemini = bool(os.environ.get("GEMINI_API_KEY"))
+    if pref == "gemini":
+        return "gemini" if have_gemini else None
+    if pref == "claude" and have_claude:
+        return "claude"
+    return "claude" if have_claude else "gemini" if have_gemini else None
+
+
+GENERATE_PROMPT = """You write original fictional first-person stories for vertical short videos (YouTube Shorts / TikTok) in the "storytime" genre: a ground-level, believable situation, a clear conflict, a twist, a satisfying payoff.
+Write every field in this language: {language}.
+
+This is FICTION that you invent. It is not a retelling of any real post, article or person. Never claim it really happened.
+
+Requirements:
+- title: the hook, max 90 characters, intriguing, honest to the story.
+- body: the whole story in first person. Short conversational sentences, no filler, a strong twist, a final line that is a payoff or a question to the viewer. At most {max_chars} characters. Numbers and abbreviations written the way they are spoken.
+- description: 1-2 sentences plus 3-5 hashtags.
+- tags: 5-10 tags without "#".
+- quality: 1-10, honest self-assessment of how well this holds a viewer.
+Avoid: real people or brands in a bad light, violence against children, sexual content, hate, self-harm, medical or legal advice, politics.
+Do NOT reuse the plot of any of these recent stories:
+{recent}"""
+
+
+def generate_story(cfg: dict, recent_titles: list[str], rng) -> Script:
+    themes = cfg["stories"]["themes"]
+    theme = rng.choice(themes)
+    system = GENERATE_PROMPT.format(language=cfg["text"]["language"], max_chars=cfg["stories"]["max_chars"],
+                                    recent="\n".join(f"- {t}" for t in recent_titles[:40]) or "(none yet)")
+    user = f"Theme: {theme}. Make it surprising and specific (concrete names of places, objects, numbers)."
+    provider = llm_provider(cfg)
+    if provider == "claude":
+        data = _claude_json(cfg, system, user, "генерация истории")
+    elif provider == "gemini":
+        data = _gemini_json(cfg, system, user, "генерация истории", temperature=1.0)
+    else:
+        raise RuntimeError("Для придуманных историй нужен ключ Gemini или Claude (faceless setup --keys)")
+    script = _to_script(data)
+    script.tags = list(dict.fromkeys(script.tags + ["storytime", "fiction"]))
+    return script
 
 
 def _translate(text: str, target: str) -> str:
@@ -150,16 +220,10 @@ def _translate(text: str, target: str) -> str:
 
 def adapt(post: Post, cfg: dict) -> Script:
     mode = cfg["text"]["adapter"]
-    have_claude = bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"))
-    have_gemini = bool(os.environ.get("GEMINI_API_KEY"))
-    if mode == "auto":  # что подключено, тем и переписываем: сначала Claude, потом Gemini
-        mode = "claude" if have_claude else "gemini" if have_gemini else "none"
-    elif mode == "claude" and not have_claude:
-        mode = "gemini" if have_gemini else "none"
-    if mode == "gemini" and not have_gemini:
-        mode = "none"
-    if mode == "none" and cfg["text"]["adapter"] in ("claude", "gemini", "auto"):
-        log.warning("Нет ключа Claude или Gemini: история идёт без переработки (как есть)")
+    if mode in ("claude", "gemini", "auto"):
+        mode = llm_provider(cfg) or "none"
+        if mode == "none":
+            log.warning("Нет ключа Claude или Gemini: история идёт без переработки (как есть)")
     if mode == "claude":
         return adapt_claude(post, cfg)
     if mode == "gemini":

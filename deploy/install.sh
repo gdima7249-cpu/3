@@ -108,12 +108,24 @@ cat > /usr/local/bin/faceless.new <<EOF
 #!/bin/sh
 # Обёртка: запускает faceless от пользователя faceless в папке проекта
 if [ "\$(id -u)" -ne 0 ]; then exec sudo "\$0" "\$@"; fi
+if [ "\$1" = "autopilot" ]; then
+  case "\$2" in
+    on)  systemctl enable --now faceless-make.timer faceless-publish.timer && echo "Автопилот включён." ;;
+    off) systemctl disable --now faceless-make.timer faceless-publish.timer && echo "Автопилот выключен." ;;
+    run) systemctl start faceless-make.service && echo "Сборка запущена, ход: journalctl -u faceless-make -f" ;;
+    *)   systemctl list-timers 'faceless-*' --no-pager ;;
+  esac
+  exit
+fi
 cd "$APP" || exit 1
 exec runuser -u faceless -- "$APP/.venv/bin/python" -u -m faceless "\$@"
 EOF
 chmod 755 /usr/local/bin/faceless.new && mv -f /usr/local/bin/faceless.new /usr/local/bin/faceless
 cp "$APP"/deploy/faceless-*.service "$APP"/deploy/faceless-*.timer /etc/systemd/system/
 systemctl daemon-reload 2>/dev/null || true
+# Автопилот включается сразу; пока нет ключей, запуски тихо пропускаются (см. ExecCondition в юнитах)
+systemctl enable --now faceless-make.timer faceless-publish.timer 2>/dev/null \
+  || echo "  (systemd недоступен: автозапуск включите вручную, когда сможете)"
 
 say "Готово! Свободно на диске: $(free_mb "$HOME_DIR") МБ"
 FREE_MB=$(free_mb "$HOME_DIR")
@@ -121,10 +133,8 @@ FREE_MB=$(free_mb "$HOME_DIR")
 cat <<'EOF'
 
 Дальше (подробно — в ИНСТРУКЦИЯ.md):
-  faceless demo                         проверка: соберёт тестовый ролик (2–4 минуты)
-  faceless add-background ССЫЛКА        добавить фоновое видео
-  faceless setup                        ключи и подключение YouTube
-  faceless make -n 1                    первый настоящий ролик
-  faceless publish                      загрузить на YouTube
-  systemctl enable --now faceless-make.timer faceless-publish.timer    включить автопилот
+  faceless setup --keys                 ключ Gemini и подключение Telegram/YouTube (один раз)
+  faceless autopilot run                собрать ролики прямо сейчас
+  faceless status                       что настроено и что в очереди
+Автопилот уже включён: как только появится ключ Gemini, ролики будут собираться сами.
 EOF

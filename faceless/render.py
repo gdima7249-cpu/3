@@ -15,14 +15,33 @@ def _pick(folder: Path, exts: set[str], rng: random.Random) -> Path | None:
     return rng.choice(files) if files else None
 
 
+GRADIENTS = [  # палитры мягких «живых» фонов: тёмные, чтобы белые субтитры читались
+    ("0x1b1464", "0x6a11cb", "0x0b132b"),
+    ("0x023e3f", "0x0f9b8e", "0x0a1128"),
+    ("0x3a0ca3", "0xf72585", "0x10002b"),
+    ("0x14213d", "0xfca311", "0x0b0b0b"),
+]
+
+
+def ensure_backgrounds(folder: Path) -> Path:
+    """Если своих фонов нет, один раз делаем несколько спокойных анимированных градиентов (≈1 МБ каждый)."""
+    folder.mkdir(parents=True, exist_ok=True)
+    if not any(p.suffix.lower() in VIDEO_EXT for p in folder.glob("*")):
+        for i, (c0, c1, c2) in enumerate(GRADIENTS, 1):
+            media.run(["ffmpeg", "-y", "-f", "lavfi", "-i",
+                       f"gradients=s=720x1280:r=30:c0={c0}:c1={c1}:c2={c2}:nb_colors=3:speed=0.02:duration=60:seed={i}",
+                       "-c:v", "libx264", "-preset", "veryfast", "-crf", "30", "-pix_fmt", "yuv420p", "-threads", "1",
+                       "-movflags", "+faststart", str(folder / f"auto_gradient_{i}.mp4")])
+    return folder
+
+
 def render(*, voice: Path, subs: Path, card: Path, title_end: float, duration: float, out: Path,
            cfg: dict, rng: random.Random) -> Path:
     vc, paths = cfg["video"], cfg["paths"]
     w, h, fps = vc["width"], vc["height"], vc["fps"]
     background = _pick(Path(paths["backgrounds_dir"]), VIDEO_EXT, rng)
     if background is None:
-        raise FileNotFoundError(
-            f"Нет фоновых видео в {paths['backgrounds_dir']} — положите туда геймплей/«залипательные» ролики")
+        background = _pick(ensure_backgrounds(Path(paths["backgrounds_dir"])), VIDEO_EXT, rng)
     music = _pick(Path(paths["music_dir"]), AUDIO_EXT, rng)
 
     total = duration + 0.6  # небольшой хвост после последнего слова

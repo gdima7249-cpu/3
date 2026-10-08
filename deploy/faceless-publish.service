@@ -5,6 +5,8 @@ After=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/faceless/app
+# Пока не подключены ни Telegram, ни YouTube, запуск тихо пропускается
+ExecCondition=/opt/faceless/app/.venv/bin/python -m faceless ready --publish
 ExecStart=/opt/faceless/app/.venv/bin/python -m faceless publish
 User=faceless
 # Telegram-бот на этом же сервере всегда в приоритете: рендер получает CPU/диск по остаточному принципу

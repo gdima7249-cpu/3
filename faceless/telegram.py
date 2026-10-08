@@ -24,6 +24,16 @@ def _call(method: str, token: str | None = None, **kwargs) -> dict:
     return data["result"]
 
 
+def notify(text: str) -> None:
+    """Короткое сообщение себе в Telegram (ошибки автопилота). Без настроенного бота ничего не делает."""
+    if not (os.environ.get("TELEGRAM_BOT_TOKEN") and os.environ.get("TELEGRAM_CHAT_ID")):
+        return
+    try:
+        _call("sendMessage", data={"chat_id": os.environ["TELEGRAM_CHAT_ID"], "text": text[:3500]})
+    except Exception:
+        pass
+
+
 def find_chat_id(token: str) -> int | None:
     """Последний чат, где боту написали /start."""
     updates = _call("getUpdates", token, data={"timeout": 0})

@@ -16,7 +16,7 @@ DEFAULTS: dict = {
         "min_score": 1500, "min_chars": 300, "max_chars": 5000,
         "top_comments": 4, "question_subreddits": ["AskReddit", "NoStupidQuestions"],
     },
-    "text": {"language": "en", "adapter": "auto", "model": "claude-opus-5-5", "gemini_model": "gemini-flash-latest",
+    "text": {"language": "en", "adapter": "auto", "model": "claude-opus-5-5", "gemini_models": ["gemini-flash-lite-latest", "gemini-3.1-flash-lite", "gemini-flash-latest"],
              "min_quality": 6},
     "tts": {
         "engine": "edge", "voices": ["en-US-ChristopherNeural", "en-US-AriaNeural", "en-US-GuyNeural", "en-US-JennyNeural"], "rate": "+12%",
@@ -37,6 +37,23 @@ DEFAULTS: dict = {
     },
     "tiktok": {"enabled": False, "privacy_level": "SELF_ONLY"},
     "telegram": {"enabled": False},
+    "autopilot": {"queue_target": 6},  # сколько готовых, но ещё не доставленных роликов держать в запасе
+    "stories": {
+        # auto: Reddit, только если есть ключи Reddit; иначе ИИ придумывает истории. reddit | generate — принудительно
+        "source": "auto",
+        "max_chars": 950,  # придуманная история: примерно на одну минуту, т.е. один ролик (≈15 символов в секунду)
+        "themes": [
+            "petty revenge on a rude neighbor", "a coworker who kept taking credit for my work",
+            "the roommate from hell", "a wedding that went completely wrong",
+            "a strange message from an unknown number", "a night shift where something felt off",
+            "a family secret found in the attic", "a stranger's kindness that came back years later",
+            "a landlord who thought he could cheat me", "a school reunion with a twist",
+            "a lost wallet and an unexpected ending", "a customer who yelled at the wrong person",
+            "a group project betrayal", "an anonymous note left on my car",
+            "a neighbor's dog that solved a mystery", "moving into a house with one strange rule",
+            "an HOA that picked a fight with the wrong resident", "a road trip that took a wrong turn",
+        ],
+    },
 }
 
 

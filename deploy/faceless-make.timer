@@ -1,9 +1,9 @@
 [Unit]
-Description=faceless: сборка роликов раз в сутки
+Description=faceless: пополнение очереди каждые 6 часов
 
 [Timer]
-OnCalendar=*-*-* 03:10
-RandomizedDelaySec=20min
+OnCalendar=*-*-* 00,06,12,18:20
+RandomizedDelaySec=15min
 Persistent=true
 
 [Install]

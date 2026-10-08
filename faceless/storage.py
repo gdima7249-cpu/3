@@ -41,6 +41,11 @@ class Store:
     def seen(self, post_id: str) -> bool:
         return self.db.execute("SELECT 1 FROM posts WHERE id=?", (post_id,)).fetchone() is not None
 
+    def recent_titles(self, prefix: str, limit: int = 40) -> list[str]:
+        rows = self.db.execute("SELECT title FROM posts WHERE id LIKE ? ORDER BY created_at DESC LIMIT ?",
+                               (prefix + "%", limit))
+        return [r[0] for r in rows]
+
     def mark_post(self, post_id: str, subreddit: str, title: str, status: str, reason: str = "") -> None:
         self.db.execute("INSERT OR REPLACE INTO posts VALUES (?,?,?,?,?,?)",
                         (post_id, subreddit, title, status, reason, now_iso()))
@@ -56,6 +61,11 @@ class Store:
         )
         self.db.commit()
         return cur.lastrowid
+
+    def undelivered(self) -> int:
+        """Готовые ролики, которые ещё никуда не ушли (очередь, которую надо держать заполненной)."""
+        return self.db.execute("SELECT COUNT(*) FROM videos WHERE youtube_id IS NULL AND tiktok_id IS NULL "
+                               "AND telegram_id IS NULL").fetchone()[0]
 
     def taken_slots(self) -> set[str]:
         return {r[0] for r in self.db.execute("SELECT publish_at FROM videos WHERE publish_at IS NOT NULL")}
