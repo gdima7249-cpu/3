@@ -267,3 +267,18 @@ def test_inbox_parse_and_selection(tmp_path, monkeypatch):
     assert pipeline.inbox_left(cfg) == 1  # первая история отмечена использованной
     pipeline.make(cfg, 5)
     assert produced == ["The neighbor's dog", "The second story"] and pipeline.inbox_left(cfg) == 0
+
+
+def test_ipv4_only_context_restores_state():
+    import socket
+
+    import urllib3.util.connection as conn
+
+    from faceless.adapt import ipv4_only
+
+    before = conn.HAS_IPV6
+    with ipv4_only(True):
+        assert conn.allowed_gai_family() == socket.AF_INET
+    assert conn.HAS_IPV6 == before
+    with ipv4_only(False):
+        assert conn.HAS_IPV6 == before

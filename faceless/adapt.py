@@ -83,6 +83,29 @@ def _claude_json(cfg: dict, system: str, user: str, what: str) -> dict:
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 
+class ipv4_only:
+    """Пока выполняется блок, соединения идут только по IPv4.
+
+    У многих VPS есть и IPv4, и IPv6, а Google определяет страну по адресу, с которого пришёл запрос.
+    Если IPv6-адрес записан за другой страной, Gemini отвечает «User location is not supported»,
+    хотя IPv4 сервера в поддерживаемой стране. Выбор семейства адресов не меняет, где стоит сервер."""
+
+    def __init__(self, enabled: bool = True):
+        self.enabled = enabled
+
+    def __enter__(self):
+        import urllib3.util.connection as conn
+
+        self._conn, self._old = conn, conn.HAS_IPV6
+        if self.enabled:
+            conn.HAS_IPV6 = False
+        return self
+
+    def __exit__(self, *exc):
+        self._conn.HAS_IPV6 = self._old
+        return False
+
+
 def _gemini_schema(schema: dict) -> dict:
     """Gemini понимает урезанный OpenAPI-диалект: без additionalProperties."""
     out = {k: v for k, v in schema.items() if k != "additionalProperties"}
@@ -109,8 +132,9 @@ def _gemini_json(cfg: dict, system: str, user: str, what: str, temperature: floa
     for rnd in range(3):  # три круга по всем моделям, с паузами между кругами
         for model in models:
             try:
-                resp = requests.post(GEMINI_URL.format(model=model), json=body, timeout=(10, 60),
-                                     headers={"x-goog-api-key": os.environ["GEMINI_API_KEY"]})
+                with ipv4_only(cfg["text"].get("ipv4_only", True)):
+                    resp = requests.post(GEMINI_URL.format(model=model), json=body, timeout=(10, 60),
+                                         headers={"x-goog-api-key": os.environ["GEMINI_API_KEY"]})
             except requests.RequestException as e:  # таймаут или обрыв: пробуем следующую модель
                 last = f"{model}: {type(e).__name__}"
                 continue
@@ -122,6 +146,9 @@ def _gemini_json(cfg: dict, system: str, user: str, what: str, temperature: floa
                     msg = resp.json()["error"]["message"]
                 except Exception:
                     msg = resp.text[:200]
+                if "location is not supported" in msg:
+                    raise RuntimeError("Gemini недоступен с этого сервера: Google не поддерживает страну по IP-адресу "
+                                       "сервера. Используйте faceless inbox (см. ИНСТРУКЦИЯ.md).")
                 raise RuntimeError(f"Gemini {resp.status_code}: {msg}")
             data = resp.json()
             cands = data.get("candidates") or []

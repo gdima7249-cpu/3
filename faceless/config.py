@@ -17,7 +17,8 @@ DEFAULTS: dict = {
         "top_comments": 4, "question_subreddits": ["AskReddit", "NoStupidQuestions"],
     },
     "text": {"language": "en", "adapter": "auto", "model": "claude-opus-5-5", "gemini_models": ["gemini-flash-lite-latest", "gemini-3.1-flash-lite", "gemini-flash-latest"],
-             "min_quality": 6},
+             "min_quality": 6,
+             "ipv4_only": True},  # к Gemini ходим только по IPv4 (см. adapt.ipv4_only)
     "tts": {
         "engine": "edge", "voices": ["en-US-ChristopherNeural", "en-US-AriaNeural", "en-US-GuyNeural", "en-US-JennyNeural"], "rate": "+12%",
         "elevenlabs_voice_ids": [], "elevenlabs_model": "eleven_multilingual_v2",
