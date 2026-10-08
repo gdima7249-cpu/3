@@ -20,7 +20,11 @@ _token: tuple[str, float] | None = None
 
 
 def _user_agent() -> str:
-    return os.environ.get("REDDIT_USER_AGENT", "faceless-factory/0.1")
+    """Reddit требует честную подпись вида «платформа:приложение:версия (by /u/ник)»."""
+    if os.environ.get("REDDIT_USER_AGENT"):
+        return os.environ["REDDIT_USER_AGENT"]
+    user = os.environ.get("REDDIT_USERNAME", "").lstrip("/").removeprefix("u/")
+    return f"linux:faceless-factory:0.1 (by /u/{user})" if user else "linux:faceless-factory:0.1"
 
 
 def _auth_headers() -> tuple[str, dict]:

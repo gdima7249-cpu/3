@@ -210,3 +210,13 @@ def test_post_from_text():
     assert p.title == "My neighbor stole my Wi-Fi"
     assert "EDIT" not in p.body and "**" not in p.body and p.body.startswith("It started in 2021.")
     assert p.id.startswith("txt-") and post_from_text("a\nb").id == post_from_text("a\nb").id
+
+
+def test_reddit_user_agent(monkeypatch):
+    from faceless import reddit
+
+    monkeypatch.delenv("REDDIT_USER_AGENT", raising=False)
+    monkeypatch.setenv("REDDIT_USERNAME", "u/DinRed")
+    assert reddit._user_agent() == "linux:faceless-factory:0.1 (by /u/DinRed)"
+    monkeypatch.delenv("REDDIT_USERNAME")
+    assert reddit._user_agent() == "linux:faceless-factory:0.1"

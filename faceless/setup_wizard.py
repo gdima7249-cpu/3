@@ -15,6 +15,7 @@ ENV_KEYS = [
     ("REDDIT_CLIENT_ID", "Reddit client id — нужен, только если Reddit не отдаёт посты без ключа.\n"
                          "  Сначала попробуйте без него: нажмите Enter."),
     ("REDDIT_CLIENT_SECRET", "Reddit secret (Enter — пропустить)"),
+    ("REDDIT_USERNAME", "Ваш ник на Reddit, без u/ (нужен Reddit для подписи запросов; Enter — пропустить)"),
 ]
 
 
