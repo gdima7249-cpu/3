@@ -190,3 +190,14 @@ def test_direct_link_and_hints():
     assert direct_link("https://videos.pexels.com/a.mp4") == "https://videos.pexels.com/a.mp4"
     assert "Все, у кого есть ссылка" in _html_hint(drive, "<html>Sign in to continue</html>")
     assert "Pexels" in _html_hint("https://example.com/x", "<html></html>")
+
+
+def test_wizard_rejects_misplaced_values():
+    from faceless.setup_wizard import _check_value
+
+    assert _check_value("ANTHROPIC_API_KEY", "") is None
+    assert _check_value("ANTHROPIC_API_KEY", "sk-ant-abc123") is None
+    assert "JSON" in _check_value("ANTHROPIC_API_KEY", '{"installed":{"client_id":"x"}}')
+    assert "sk-ant" in _check_value("ANTHROPIC_API_KEY", "abc123")
+    assert _check_value("REDDIT_CLIENT_ID", "a1B2c3D4e5") is None
+    assert _check_value("REDDIT_CLIENT_ID", "two words") is not None

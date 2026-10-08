@@ -34,6 +34,20 @@ def _write_env(path: Path, values: dict[str, str]) -> None:
     path.chmod(0o600)
 
 
+def _check_value(key: str, value: str) -> str | None:
+    """Ловит типичную ошибку: в поле ключа вставили не то (например, JSON-файл Google)."""
+    if not value:
+        return None
+    if value.startswith("{") or '"' in value:
+        return ("Это похоже на файл Google (JSON), а здесь нужен короткий ключ. "
+                "Файл Google будет запрошен позже, на отдельном шаге. Сейчас нажмите Enter, чтобы пропустить.")
+    if " " in value or len(value) > 200:
+        return "Ключ не должен содержать пробелов и быть очень длинным. Скопируйте только сам ключ."
+    if key == "ANTHROPIC_API_KEY" and not value.startswith("sk-ant"):
+        return "Ключ Claude начинается с «sk-ant». Проверьте, что скопировали именно его."
+    return None
+
+
 def _paste_json() -> dict | None:
     print("Откройте скачанный файл client_secret_....json Блокнотом, выделите всё (Ctrl+A), скопируйте (Ctrl+C)")
     print("и вставьте сюда (правая кнопка мыши или Shift+Insert). Затем нажмите Enter.")
@@ -76,6 +90,11 @@ def run(cfg: dict, config_path: str) -> None:
         current = env.get(key, "")
         shown = f" [сейчас: {current[:6]}…]" if current else ""
         value = input(f"Вопрос {n} из {len(ENV_KEYS)}. {hint}{shown}\n(пусто + Enter = пропустить) > ").strip()
+        problem = _check_value(key, value)
+        while problem:
+            print(f"  ✖ {problem}")
+            value = input("  Попробуйте ещё раз или нажмите Enter, чтобы пропустить > ").strip()
+            problem = _check_value(key, value)
         if value:
             env[key] = value
         print()
