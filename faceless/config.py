@@ -16,7 +16,8 @@ DEFAULTS: dict = {
         "min_score": 1500, "min_chars": 300, "max_chars": 5000,
         "top_comments": 4, "question_subreddits": ["AskReddit", "NoStupidQuestions"],
     },
-    "text": {"language": "en", "adapter": "claude", "model": "claude-opus-5-5", "min_quality": 6},
+    "text": {"language": "en", "adapter": "auto", "model": "claude-opus-5-5", "gemini_model": "gemini-flash-latest",
+             "min_quality": 6},
     "tts": {
         "engine": "edge", "voices": ["en-US-ChristopherNeural", "en-US-AriaNeural", "en-US-GuyNeural", "en-US-JennyNeural"], "rate": "+12%",
         "elevenlabs_voice_ids": [], "elevenlabs_model": "eleven_multilingual_v2",

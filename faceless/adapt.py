@@ -3,6 +3,8 @@
 * claude    — Claude переводит и адаптирует историю под формат коротких видео: сильный хук,
               разговорный язык, без воды; заодно ставит оценку «смотрибельности» и пишет описание.
               Это главный способ не выглядеть «бездушным» реюзом: текст получается переработанным.
+* gemini    — то же самое через Gemini API (ключ из Google AI Studio, есть бесплатный тариф).
+* auto      — что подключено: Claude, иначе Gemini, иначе как есть.
 * translate — машинный перевод (deep-translator / Google), без переработки.
 * none      — исходный текст как есть.
 """
@@ -83,6 +85,55 @@ def adapt_claude(post: Post, cfg: dict) -> Script:
                   quality=int(data["quality"]))
 
 
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+
+
+def _gemini_schema(schema: dict) -> dict:
+    """Gemini понимает урезанный OpenAPI-диалект: без additionalProperties."""
+    out = {k: v for k, v in schema.items() if k != "additionalProperties"}
+    if "properties" in out:
+        out["properties"] = {k: _gemini_schema(v) for k, v in out["properties"].items()}
+    if "items" in out:
+        out["items"] = _gemini_schema(out["items"])
+    return out
+
+
+def adapt_gemini(post: Post, cfg: dict) -> Script:
+    import requests
+
+    max_chars = int(cfg["video"]["max_part_seconds"] * 15 * 3)
+    body = {
+        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT.format(language=cfg["text"]["language"], max_chars=max_chars)}]},
+        "contents": [{"role": "user", "parts": [{"text": _post_as_text(post)}]}],
+        "generationConfig": {"responseMimeType": "application/json", "responseSchema": _gemini_schema(SCHEMA),
+                             "temperature": 0.8},
+    }
+    last = None
+    for attempt in range(3):
+        resp = requests.post(GEMINI_URL.format(model=cfg["text"]["gemini_model"]), json=body, timeout=120,
+                             headers={"x-goog-api-key": os.environ["GEMINI_API_KEY"]})
+        if resp.status_code in (429, 500, 503):  # бесплатный тариф: упёрлись в лимит или сервис занят
+            last = f"{resp.status_code}"
+            import time
+            time.sleep(10 * (attempt + 1))
+            continue
+        if resp.status_code >= 400:
+            try:
+                msg = resp.json()["error"]["message"]
+            except Exception:
+                msg = resp.text[:200]
+            raise RuntimeError(f"Gemini {resp.status_code}: {msg}")
+        data = resp.json()
+        cands = data.get("candidates") or []
+        if not cands or not cands[0].get("content", {}).get("parts"):
+            reason = (data.get("promptFeedback") or {}).get("blockReason") or (cands[0].get("finishReason") if cands else "нет ответа")
+            raise AdapterRefused(f"Gemini не вернул текст для {post.id}: {reason}")
+        out = json.loads("".join(p.get("text", "") for p in cands[0]["content"]["parts"]))
+        return Script(title=out["title"].strip(), body=out["body"].strip(), description=out["description"].strip(),
+                      tags=list(out["tags"]), quality=int(out["quality"]))
+    raise RuntimeError(f"Gemini: лимит запросов или сервис занят ({last}). Повторите позже.")
+
+
 def _translate(text: str, target: str) -> str:
     from deep_translator import GoogleTranslator
 
@@ -99,11 +150,20 @@ def _translate(text: str, target: str) -> str:
 
 def adapt(post: Post, cfg: dict) -> Script:
     mode = cfg["text"]["adapter"]
-    if mode == "claude" and not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
-        log.warning("Нет ANTHROPIC_API_KEY — истории идут без переработки Claude (adapter = none)")
+    have_claude = bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"))
+    have_gemini = bool(os.environ.get("GEMINI_API_KEY"))
+    if mode == "auto":  # что подключено, тем и переписываем: сначала Claude, потом Gemini
+        mode = "claude" if have_claude else "gemini" if have_gemini else "none"
+    elif mode == "claude" and not have_claude:
+        mode = "gemini" if have_gemini else "none"
+    if mode == "gemini" and not have_gemini:
         mode = "none"
+    if mode == "none" and cfg["text"]["adapter"] in ("claude", "gemini", "auto"):
+        log.warning("Нет ключа Claude или Gemini: история идёт без переработки (как есть)")
     if mode == "claude":
         return adapt_claude(post, cfg)
+    if mode == "gemini":
+        return adapt_gemini(post, cfg)
 
     body = post.body
     if post.comments:

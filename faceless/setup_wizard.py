@@ -12,6 +12,8 @@ import requests
 ENV_KEYS = [
     ("ANTHROPIC_API_KEY", "Ключ Claude (Anthropic) — переписывает истории с цепляющим началом.\n"
                           "  Нет ключа — нажмите Enter, истории пойдут как есть."),
+    ("GEMINI_API_KEY", "Ключ Gemini из Google AI Studio (aistudio.google.com/apikey): переписывает истории.\n"
+                       "  Подписка Gemini для этого не подходит, нужен именно такой ключ. Нет ключа: Enter."),
     ("REDDIT_CLIENT_ID", "Reddit client id — нужен, только если Reddit не отдаёт посты без ключа.\n"
                          "  Сначала попробуйте без него: нажмите Enter."),
     ("REDDIT_CLIENT_SECRET", "Reddit secret (Enter — пропустить)"),
@@ -44,6 +46,8 @@ def _check_value(key: str, value: str) -> str | None:
                 "Файл Google будет запрошен позже, на отдельном шаге. Сейчас нажмите Enter, чтобы пропустить.")
     if " " in value or len(value) > 200:
         return "Ключ не должен содержать пробелов и быть очень длинным. Скопируйте только сам ключ."
+    if key == "GEMINI_API_KEY" and not (value.startswith(("AIza", "AQ.")) and len(value) > 30):
+        return "Ключ Gemini начинается с «AIza» или «AQ.». Проверьте, что скопировали именно его."
     if key == "ANTHROPIC_API_KEY" and not value.startswith("sk-ant"):
         return "Ключ Claude начинается с «sk-ant». Проверьте, что скопировали именно его."
     return None

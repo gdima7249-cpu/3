@@ -220,3 +220,25 @@ def test_reddit_user_agent(monkeypatch):
     assert reddit._user_agent() == "linux:faceless-factory:0.1 (by /u/DinRed)"
     monkeypatch.delenv("REDDIT_USERNAME")
     assert reddit._user_agent() == "linux:faceless-factory:0.1"
+
+
+def test_gemini_schema_and_adapter_selection(monkeypatch):
+    from faceless import adapt
+    from faceless.cli import DEMO_POST_EN
+    from faceless.config import DEFAULTS, _merge
+
+    schema = adapt._gemini_schema(adapt.SCHEMA)
+    assert "additionalProperties" not in schema and "tags" in schema["properties"]
+
+    calls = []
+    monkeypatch.setattr(adapt, "adapt_gemini", lambda post, cfg: calls.append("gemini") or "G")
+    monkeypatch.setattr(adapt, "adapt_claude", lambda post, cfg: calls.append("claude") or "C")
+    cfg = _merge(DEFAULTS, {})
+    for k in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "GEMINI_API_KEY"):
+        monkeypatch.delenv(k, raising=False)
+    assert adapt.adapt(DEMO_POST_EN, cfg).body.startswith("Three years ago")  # ни одного ключа: как есть
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza" + "x" * 35)
+    assert adapt.adapt(DEMO_POST_EN, cfg) == "G"
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-x")
+    assert adapt.adapt(DEMO_POST_EN, cfg) == "C"  # Claude главнее, если подключены оба
+    assert calls == ["gemini", "claude"]

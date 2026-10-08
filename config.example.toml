@@ -19,8 +19,9 @@ question_subreddits = ["AskReddit", "NoStupidQuestions"]
 
 [text]
 language = "en"         # en — самая большая аудитория; ru тоже поддерживается
-adapter = "claude"      # claude | none (для en перевод не нужен) | translate
-model = "claude-opus-5-5"
+adapter = "auto"        # auto (Claude, иначе Gemini, иначе как есть) | claude | gemini | none | translate
+model = "claude-opus-5-5"     # для Claude; дешевле: "claude-sonnet-5-5"
+gemini_model = "gemini-flash-latest"   # для Gemini; "latest" сам переходит на новую версию
 min_quality = 6         # Claude оценивает «смотрибельность» 1..10; ниже — пропускаем
 
 [tts]
