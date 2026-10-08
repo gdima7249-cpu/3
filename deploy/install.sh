@@ -110,8 +110,8 @@ cat > /usr/local/bin/faceless.new <<EOF
 if [ "\$(id -u)" -ne 0 ]; then exec sudo "\$0" "\$@"; fi
 if [ "\$1" = "autopilot" ]; then
   case "\$2" in
-    on)  systemctl enable --now faceless-make.timer faceless-publish.timer && echo "Автопилот включён." ;;
-    off) systemctl disable --now faceless-make.timer faceless-publish.timer && echo "Автопилот выключен." ;;
+    on)  systemctl enable --now faceless-make.timer faceless-publish.timer faceless-telegram.timer && echo "Автопилот включён." ;;
+    off) systemctl disable --now faceless-make.timer faceless-publish.timer faceless-telegram.timer && echo "Автопилот выключен." ;;
     run) echo "Собираю ролики (это может занять 5-15 минут), подождите..."
          if systemctl start faceless-make.service; then echo "Готово. Проверьте: faceless status"
          else echo; echo "Не получилось. Причина (последние строки журнала):"; echo
@@ -128,7 +128,7 @@ chmod 755 /usr/local/bin/faceless.new && mv -f /usr/local/bin/faceless.new /usr/
 cp "$APP"/deploy/faceless-*.service "$APP"/deploy/faceless-*.timer /etc/systemd/system/
 systemctl daemon-reload 2>/dev/null || true
 # Автопилот включается сразу; пока нет ключей, запуски тихо пропускаются (см. ExecCondition в юнитах)
-systemctl enable --now faceless-make.timer faceless-publish.timer 2>/dev/null \
+systemctl enable --now faceless-make.timer faceless-publish.timer faceless-telegram.timer 2>/dev/null \
   || echo "  (systemd недоступен: автозапуск включите вручную, когда сможете)"
 
 say "Готово! Свободно на диске: $(free_mb "$HOME_DIR") МБ"

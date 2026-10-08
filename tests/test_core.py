@@ -314,3 +314,42 @@ def test_queue_cancel_and_skip(tmp_path):
     main(["-c", str(cfgfile), "skip", "1"])
     from faceless.config import load_config
     assert [t for t, _ in _inbox_waiting(load_config(cfgfile), Store(db))] == ["B"]
+
+
+def test_telegram_build_text_and_sync(tmp_path, monkeypatch):
+    from faceless import inbox, telegram
+    from faceless.config import DEFAULTS, _merge
+
+    # Длинную историю Telegram режет на куски: продолжение склеивается, отдельные сообщения — разные истории
+    body = "word " * 800  # ~4000 символов
+    first = "TITLE: Long one\n" + body
+    text = telegram.build_text([first, "and the end of the long story, it keeps going on and on for a bit more.",
+                                "TITLE: Second\n" + "Another story text that is long enough to count. " * 3])
+    parsed = inbox.parse(text)
+    assert [t for t, _ in parsed] == ["Long one", "Second"] and "keeps going" in parsed[0][1]
+
+    cfg = _merge(DEFAULTS, {"paths": {"db": str(tmp_path / "db.sqlite3"), "inbox": str(tmp_path / "inbox.txt")}})
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123:abc")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "42")
+    story = "TITLE: From phone\n" + "A believable situation with a twist at the end. " * 4
+    updates = [
+        {"update_id": 10, "message": {"chat": {"id": 42}, "text": story}},
+        {"update_id": 11, "message": {"chat": {"id": 999}, "text": "TITLE: Stranger\n" + "evil " * 40}},  # чужой чат
+        {"update_id": 12, "message": {"chat": {"id": 42}, "text": "/queue"}},
+    ]
+    sent, calls = [], []
+
+    def fake_call(method, token=None, **kw):
+        calls.append((method, kw.get("data")))
+        if method == "getUpdates":
+            return updates if not (tmp_path / "tg_offset.txt").exists() else []
+        if method == "sendMessage":
+            sent.append(kw["data"]["text"])
+        return {}
+
+    monkeypatch.setattr(telegram, "_call", fake_call)
+    assert telegram.sync_inbox(cfg) == 1
+    assert [t for t, _ in inbox.load(cfg["paths"]["inbox"])] == ["From phone"]  # чужое не попало
+    assert any("Добавлено историй: 1" in m for m in sent) and any("Готовых роликов" in m for m in sent)
+    assert (tmp_path / "tg_offset.txt").read_text() == "12"
+    assert telegram.sync_inbox(cfg) == 0  # повторно те же сообщения не обрабатываются

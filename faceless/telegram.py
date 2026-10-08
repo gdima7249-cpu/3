@@ -65,3 +65,108 @@ def upload(row, cfg: dict) -> str:
     _call("sendMessage", data={"chat_id": chat_id, "text": text[:4000],
                                "reply_to_message_id": msg["message_id"]})
     return str(msg["message_id"])
+
+
+# ---------------------------------------------------------------------------------------------
+# Приём историй: владелец пересылает боту текст (или .txt-файл), бот кладёт его в inbox.txt.
+# ---------------------------------------------------------------------------------------------
+SPLIT_LIMIT = 3500  # Telegram режет длинные сообщения на куски ~4096 символов; если сообщение так длинно, дальше продолжение
+
+
+def build_text(messages: list[str]) -> str:
+    """Склеивает сообщения владельца в один текст для разбора на истории.
+
+    Сообщение — продолжение предыдущего, только если предыдущее было почти предельной длины
+    (так Telegram режет длинные вставки). Иначе это новая история: перед ней ставится разделитель."""
+    out = ""
+    prev_long = False
+    for m in messages:
+        m = m.strip()
+        if not m:
+            continue
+        if out and not prev_long:
+            out += "\n---\n"
+        elif out:
+            out += "\n"
+        out += m
+        prev_long = len(m) >= SPLIT_LIMIT
+    return out
+
+
+def _offset_file(cfg: dict) -> Path:
+    return Path(cfg["paths"]["db"]).with_name("tg_offset.txt")
+
+
+def _download_text(file_id: str, token: str) -> str:
+    info = _call("getFile", token, data={"file_id": file_id})
+    if info.get("file_size", 0) > 1_000_000:
+        raise RuntimeError("файл больше 1 МБ")
+    r = requests.get(f"https://api.telegram.org/file/bot{token}/{info['file_path']}", timeout=60)
+    r.raise_for_status()
+    return r.content.decode("utf-8", errors="replace")
+
+
+def sync_inbox(cfg: dict) -> int:
+    """Забирает новые сообщения владельца; возвращает, сколько историй добавлено. Чужих игнорирует."""
+    from . import inbox, pipeline
+
+    token, owner = os.environ.get("TELEGRAM_BOT_TOKEN"), str(os.environ.get("TELEGRAM_CHAT_ID", ""))
+    if not (token and owner):
+        return 0
+    off_file = _offset_file(cfg)
+    offset = int(off_file.read_text()) + 1 if off_file.exists() else None
+    params = {"timeout": 0, "allowed_updates": json.dumps(["message"])}
+    if offset:
+        params["offset"] = offset
+    updates = _call("getUpdates", token, data=params)
+    if not updates:
+        return 0
+
+    texts: list[str] = []
+    notes: list[str] = []
+    for upd in updates:
+        msg = upd.get("message") or {}
+        if str(msg.get("chat", {}).get("id")) != owner:
+            continue  # бот принимает команды только от вас
+        text = msg.get("text") or msg.get("caption") or ""
+        doc = msg.get("document")
+        if doc and str(doc.get("file_name", "")).lower().endswith(".txt"):
+            try:
+                text = _download_text(doc["file_id"], token)
+            except Exception as e:
+                notes.append(f"Не смог прочитать файл {doc.get('file_name')}: {e}")
+                continue
+        if text.startswith("/"):
+            cmd = text.split()[0].split("@")[0].lower()
+            if cmd == "/queue":
+                notes.append(_queue_report(cfg))
+            else:
+                notes.append("Просто пришлите истории текстом или файлом .txt. Формат: первая строка «TITLE: заголовок», "
+                             "дальше текст; несколько историй разделяйте строкой из трёх дефисов (---). "
+                             "/queue — что в очереди.")
+            continue
+        texts.append(text)
+    off_file.parent.mkdir(parents=True, exist_ok=True)
+    off_file.write_text(str(updates[-1]["update_id"]))
+
+    added = 0
+    if texts:
+        added = inbox.append(cfg["paths"]["inbox"], build_text(texts))
+        if added:
+            left = pipeline.inbox_left(cfg)
+            notes.append(f"✅ Добавлено историй: {added}. В очереди ждут: {left}.")
+        else:
+            notes.append("Не нашёл ни одной истории. Нужен формат: первая строка «TITLE: заголовок», дальше текст "
+                         "(не короче ~80 символов); несколько историй разделяйте строкой ---.")
+    for n in notes:
+        notify(n)
+    return added
+
+
+def _queue_report(cfg: dict) -> str:
+    from . import pipeline
+    from .storage import Store
+
+    store = Store(cfg["paths"]["db"])
+    return (f"Готовых роликов в очереди: {len(store.queue())}\n"
+            f"Историй ждут своей очереди: {pipeline.inbox_left(cfg)}")

@@ -110,6 +110,7 @@ def main(argv: list[str] | None = None) -> None:
     ff.add_argument("path")
 
     sub.add_parser("candidates", help="показать подходящие посты, ничего не рендеря")
+    sub.add_parser("telegram-sync", help="забрать из Telegram истории, которые вы прислали своему боту")
     sub.add_parser("queue", help="показать очередь: готовые ролики и истории в inbox, ожидающие своей очереди")
     cn = sub.add_parser("cancel", help="отменить готовый ролик (и все части его истории): faceless cancel НОМЕР")
     cn.add_argument("id", type=int, help="номер ролика из `faceless queue`")
@@ -160,6 +161,11 @@ def main(argv: list[str] | None = None) -> None:
                    "добавляйте истории вручную командой faceless inbox.")
             telegram.notify("⚠️ faceless: " + msg)
             raise SystemExit(msg)
+    elif args.cmd == "telegram-sync":
+        from . import telegram
+
+        n = telegram.sync_inbox(cfg)
+        print(f"Добавлено историй из Telegram: {n}")
     elif args.cmd == "queue":
         store = Store(cfg["paths"]["db"])
         rows = store.queue()
