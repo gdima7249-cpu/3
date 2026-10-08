@@ -79,6 +79,9 @@ def _print_overview(cfg: dict) -> None:
     print(f"  {mark(secrets.exists())} Файл Google (client_secret.json)")
     print(f"  {mark(token.exists())} Вход в YouTube")
     print(f"  {mark(cfg['telegram']['enabled'])} Доставка роликов в Telegram")
+    left = pipeline.inbox_left(cfg)
+    print(f"  {mark(left > 0 or adapt.llm_provider(cfg) is not None)} Источник историй: "
+          f"ИИ {'подключён' if adapt.llm_provider(cfg) else 'не подключён'}, в inbox.txt ждут: {left}")
     print(f"  {mark(True)} Фоновые видео: {len(bgs)}" + ("" if bgs else "   (не обязательно: программа сама создаст фоны; свои: faceless add-background ССЫЛКА)"))
     print(f"  Свободно на диске: {free_mb} МБ")
     if not (secrets.exists() and token.exists()) and not cfg["telegram"]["enabled"]:
@@ -101,6 +104,8 @@ def main(argv: list[str] | None = None) -> None:
     ff.add_argument("path")
 
     sub.add_parser("candidates", help="показать подходящие посты, ничего не рендеря")
+    ib = sub.add_parser("inbox", help="добавить пачку историй в очередь (вставкой или из файла)")
+    ib.add_argument("file", nargs="?", help="файл с историями (необязательно; без него вставьте текст)")
     sub.add_parser("story", help="вставить историю вручную (заголовок и текст) и сделать из неё ролик")
 
     pb = sub.add_parser("publish", help="загрузить очередь на YouTube/TikTok")
@@ -138,10 +143,33 @@ def main(argv: list[str] | None = None) -> None:
         if not made and args.fill and Store(cfg["paths"]["db"]).undelivered() >= cfg["autopilot"]["queue_target"]:
             print("Очередь уже заполнена, новых роликов не нужно.")
         elif not made:
-            msg = ("Не удалось собрать ни одного ролика. Проверьте ключ Gemini/Claude "
-                   "(faceless setup --keys) и журнал: journalctl -u faceless-make -n 50")
+            msg = ("Не удалось собрать ни одного ролика. Причина в журнале: faceless autopilot log. "
+                   "Если там «User location is not supported», Gemini недоступен с этого сервера: "
+                   "добавляйте истории вручную командой faceless inbox.")
             telegram.notify("⚠️ faceless: " + msg)
             raise SystemExit(msg)
+    elif args.cmd == "inbox":
+        from . import inbox
+
+        if args.file:
+            text = Path(args.file).read_text(encoding="utf-8")
+        else:
+            print("Вставьте истории (между историями строка из трёх дефисов ---, у каждой первая строка = заголовок).")
+            print("Когда закончите, введите на отдельной строке слово КОНЕЦ и нажмите Enter. Отмена: Ctrl+C.\n")
+            lines = []
+            try:
+                while True:
+                    line = input("> " if not lines else "")
+                    if line.strip().upper() in ("КОНЕЦ", "END"):
+                        break
+                    lines.append(line)
+            except (KeyboardInterrupt, EOFError):
+                raise SystemExit("\nОтменено.")
+            text = "\n".join(lines)
+        n = inbox.append(cfg["paths"]["inbox"], text)
+        if not n:
+            raise SystemExit("Не нашёл ни одной истории. Нужен формат: заголовок, текст, затем строка --- и следующая.")
+        print(f"Добавлено историй: {n}. Всего ждут своей очереди: {pipeline.inbox_left(cfg)}.")
     elif args.cmd == "story":
         print("Вставьте историю: первая строка — заголовок, дальше текст. Когда закончите, введите на отдельной")
         print("строке слово КОНЕЦ и нажмите Enter. (Отмена: Ctrl+C)\n")
@@ -199,7 +227,8 @@ def main(argv: list[str] | None = None) -> None:
         if args.publish:
             ok = cfg["telegram"]["enabled"] or Path(cfg["youtube"]["token"]).exists()
         else:
-            ok = adapt.llm_provider(cfg) is not None or cfg["text"]["adapter"] == "none"
+            ok = (adapt.llm_provider(cfg) is not None or cfg["text"]["adapter"] == "none"
+                  or pipeline.inbox_left(cfg) > 0)
         raise SystemExit(0 if ok else 1)
     elif args.cmd == "status":
         _print_overview(cfg)

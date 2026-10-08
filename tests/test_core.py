@@ -242,3 +242,28 @@ def test_gemini_schema_and_adapter_selection(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-x")
     assert adapt.adapt(DEMO_POST_EN, cfg) == "C"  # Claude главнее, если подключены оба
     assert calls == ["gemini", "claude"]
+
+
+def test_inbox_parse_and_selection(tmp_path, monkeypatch):
+    from faceless import inbox, pipeline
+    from faceless.config import DEFAULTS, _merge
+    from faceless.storage import Store
+
+    text = ("TITLE: The neighbor's dog\nStory: " + "It was a long night and the dog kept barking. " * 4 +
+            "\n---\n**The second story**\n" + "Nothing happened at first, then everything did. " * 4 +
+            "\n---\nshort\ntoo short\n---\n")
+    stories = inbox.parse(text)
+    assert [t for t, _ in stories] == ["The neighbor's dog", "The second story"]
+    assert stories[0][1].startswith("It was a long night") and "**" not in stories[1][1]
+
+    cfg = _merge(DEFAULTS, {"paths": {"db": str(tmp_path / "db.sqlite3"), "inbox": str(tmp_path / "inbox.txt")},
+                            "stories": {"source": "inbox"}})
+    assert inbox.append(cfg["paths"]["inbox"], text) == 2
+    assert pipeline.inbox_left(cfg) == 2
+    produced = []
+    monkeypatch.setattr(pipeline, "produce", lambda post, script, cfg, store, rng: produced.append(post.title) or [tmp_path / "x.mp4"])
+    made = pipeline.make(cfg, 1)
+    assert produced == ["The neighbor's dog"] and len(made) == 1
+    assert pipeline.inbox_left(cfg) == 1  # первая история отмечена использованной
+    pipeline.make(cfg, 5)
+    assert produced == ["The neighbor's dog", "The second story"] and pipeline.inbox_left(cfg) == 0

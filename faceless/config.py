@@ -7,7 +7,7 @@ import tomllib
 from pathlib import Path
 
 DEFAULTS: dict = {
-    "paths": {"output_dir": "output", "db": "data/faceless.sqlite3",
+    "paths": {"output_dir": "output", "db": "data/faceless.sqlite3", "inbox": "inbox.txt",
               "backgrounds_dir": "assets/backgrounds", "music_dir": "assets/music",
               "keep_work_files": False, "delete_after_upload": True},
     "reddit": {

@@ -98,12 +98,47 @@ def _make_from_posts(cfg: dict, store: Store, rng: random.Random, count: int, su
     return made
 
 
+def _make_from_inbox(cfg: dict, store: Store, rng: random.Random, count: int) -> list[Path]:
+    """Истории из inbox.txt: пишутся вами (или вставляются из Gemini/ChatGPT в чате), переписывать их не нужно."""
+    from . import inbox
+
+    made: list[Path] = []
+    for title, body in inbox.load(cfg["paths"]["inbox"]):
+        if len(made) >= count:
+            break
+        pid = inbox.story_id(title)
+        if store.seen(pid):
+            continue
+        post = Post(id=pid, subreddit="", title=title, body=body, score=0, url="")
+        script = Script(title=title, body=body, description=f"{title} #storytime #story",
+                        tags=["storytime", "story", "fiction"], quality=10)
+        try:
+            made += produce(post, script, cfg, store, rng)
+            store.mark_post(pid, "", title, "done")
+        except Exception:
+            log.exception("Сборка «%s» упала", title)
+            store.mark_post(pid, "", title, "failed")
+    return made
+
+
+def inbox_left(cfg: dict) -> int:
+    from . import inbox
+
+    store = Store(cfg["paths"]["db"])
+    return sum(1 for t, _ in inbox.load(cfg["paths"]["inbox"]) if not store.seen(inbox.story_id(t)))
+
+
 def _make_generated(cfg: dict, store: Store, rng: random.Random, count: int) -> list[Path]:
     """Истории, придуманные ИИ: оригинальные, без привязки к чужим постам и без выдуманных «источников»."""
     import hashlib
 
     made: list[Path] = []
     errors = 0
+    from .adapt import llm_provider
+
+    if llm_provider(cfg) is None:
+        log.info("Нет ключа Gemini/Claude: придумывать истории нечем (можно добавлять свои: faceless inbox)")
+        return made
     for _ in range(count * 3):  # запас на истории с низкой оценкой
         if len(made) >= count or errors >= 2:
             break
@@ -151,6 +186,8 @@ def _make(cfg: dict, store: Store, count: int, subreddit: str | None, rng: rando
     # Reddit с 2025 года отдаёт данные только по одобренному ключу; без ключей в режиме auto его не трогаем
     if source == "reddit" or (source == "auto" and os.environ.get("REDDIT_CLIENT_ID")):
         made += _make_from_posts(cfg, store, rng, count, subreddit)
+    if len(made) < count and source in ("auto", "generate", "inbox"):
+        made += _make_from_inbox(cfg, store, rng, count - len(made))
     if len(made) < count and source in ("auto", "generate"):
         made += _make_generated(cfg, store, rng, count - len(made))
     return made
