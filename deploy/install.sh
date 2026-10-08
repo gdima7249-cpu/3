@@ -109,7 +109,7 @@ cat > /usr/local/bin/faceless.new <<EOF
 # Обёртка: запускает faceless от пользователя faceless в папке проекта
 if [ "\$(id -u)" -ne 0 ]; then exec sudo "\$0" "\$@"; fi
 cd "$APP" || exit 1
-exec runuser -u faceless -- "$APP/.venv/bin/python" -m faceless "\$@"
+exec runuser -u faceless -- "$APP/.venv/bin/python" -u -m faceless "\$@"
 EOF
 chmod 755 /usr/local/bin/faceless.new && mv -f /usr/local/bin/faceless.new /usr/local/bin/faceless
 cp "$APP"/deploy/faceless-*.service "$APP"/deploy/faceless-*.timer /etc/systemd/system/

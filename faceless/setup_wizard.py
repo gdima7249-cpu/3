@@ -51,12 +51,14 @@ def _check_value(key: str, value: str) -> str | None:
 def _paste_json() -> dict | None:
     print("Откройте скачанный файл client_secret_....json Блокнотом, выделите всё (Ctrl+A), скопируйте (Ctrl+C)")
     print("и вставьте сюда (правая кнопка мыши или Shift+Insert). Затем нажмите Enter.")
-    print("Пустая строка — пропустить.\n")
+    print("Чтобы пропустить этот шаг, введите минус (-) и нажмите Enter.\n")
     buf = ""
     while True:
-        line = input()
-        if not line.strip() and not buf:
+        line = input("Вставьте содержимое файла > " if not buf else "")
+        if line.strip() == "-" and not buf:
             return None
+        if not line.strip():
+            continue  # случайные Enter не должны молча пропускать шаг
         buf += line
         try:
             data = json.loads(buf)
@@ -114,7 +116,7 @@ def run(cfg: dict, config_path: str, with_keys: bool = False) -> None:
     secrets = root / cfg["youtube"]["client_secrets"]
     _step(step, total, "Файл Google для YouTube",
           "Нужен файл client_secret_....json, скачанный в Google Cloud (шаг 4.4 инструкции).\n"
-          "Если пока нет файла: нажмите Enter, и этот шаг пропустится.")
+          "Если пока нет файла: введите - (минус) и нажмите Enter, шаг пропустится.")
     if secrets.exists():
         print(f"Файл Google ({secrets.name}) уже сохранён.")
         replace = input("Заменить его? (y — да, Enter — оставить как есть) > ").strip().lower() == "y"

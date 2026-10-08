@@ -50,6 +50,26 @@ def _demo_background(path: Path, seconds: int = 30) -> Path:
     return path
 
 
+def _print_overview(cfg: dict) -> None:
+    """Короткая сводка «что настроено, а что нет» — чтобы всегда было видно состояние."""
+    from . import __version__
+
+    def mark(ok: bool) -> str:
+        return "✔" if ok else "✖"
+
+    bgs = [p for p in Path(cfg["paths"]["backgrounds_dir"]).glob("*") if p.suffix.lower() in {".mp4", ".mov", ".mkv", ".webm"}]
+    free_mb = shutil.disk_usage(".").free // 2**20
+    secrets, token = Path(cfg["youtube"]["client_secrets"]), Path(cfg["youtube"]["token"])
+    print(f"faceless {__version__}")
+    print(f"  {mark(secrets.exists())} Файл Google (client_secret.json)")
+    print(f"  {mark(token.exists())} Вход в YouTube")
+    print(f"  {mark(cfg['telegram']['enabled'])} Доставка роликов в Telegram")
+    print(f"  {mark(bool(bgs))} Фоновые видео: {len(bgs)}" + ("" if bgs else "   (добавить: faceless add-background ССЫЛКА)"))
+    print(f"  Свободно на диске: {free_mb} МБ")
+    if not (secrets.exists() and token.exists()) and not cfg["telegram"]["enabled"]:
+        print("  Дальше: faceless setup")
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="faceless", description="Фабрика faceless-роликов из историй Reddit")
     ap.add_argument("-c", "--config", default="config.toml")
@@ -120,7 +140,13 @@ def main(argv: list[str] | None = None) -> None:
         youtube.credentials(cfg, interactive=True)
         print("Токен сохранён в", cfg["youtube"]["token"])
     elif args.cmd == "status":
-        for r in Store(cfg["paths"]["db"]).videos():
+        _print_overview(cfg)
+        rows = Store(cfg["paths"]["db"]).videos()
+        if not rows:
+            print("\nРолики: пока нет. Соберите первый командой: faceless make -n 1")
+        else:
+            print("\nПоследние ролики (YT — YouTube, TG — Telegram):")
+        for r in rows:
             yt = r["youtube_id"] or (f"ошибка: {r['youtube_error'][:40]}" if r["youtube_error"] else "—")
             tt = r["tiktok_id"] or (f"ошибка: {r['tiktok_error'][:40]}" if r["tiktok_error"] else "—")
             tg = "✔" if r["telegram_id"] else ("ошибка" if r["telegram_error"] else "—")
