@@ -156,13 +156,28 @@ def _setup_telegram(root: Path, env: dict, env_path: Path) -> None:
 
 def direct_link(url: str) -> str:
     """Превращает ссылки «поделиться» из Google Drive и Dropbox в прямые ссылки на файл."""
-    m = re.search(r"drive\.google\.com/file/d/([\w-]+)", url) or re.search(r"drive\.google\.com/open\?id=([\w-]+)", url)
+    m = re.search(r"drive\.google\.com/file/d/([\w-]+)", url) or re.search(r"drive\.google\.com/(?:open|uc)\?(?:[^#]*&)?id=([\w-]+)", url)
     if m:
-        return f"https://drive.google.com/uc?export=download&id={m.group(1)}"
+        # usercontent-адрес сам обходит страницу «файл большой, проверить на вирусы?» (confirm=t)
+        return f"https://drive.usercontent.google.com/download?id={m.group(1)}&export=download&confirm=t"
     if "dropbox.com" in url:
-        return re.sub(r"[?&]dl=0", "", url) + ("&" if "?" in url and "dl=0" not in url else "?") + "dl=1" \
-            if "dl=1" not in url else url
+        url = re.sub(r"([?&])dl=0", r"\1dl=1", url)
+        return url if "dl=1" in url else url + ("&" if "?" in url else "?") + "dl=1"
     return url
+
+
+def _html_hint(url: str, text: str) -> str:
+    low = text.lower()
+    if "drive.google" in url or "drive.usercontent" in url:
+        if "sign in" in low or "accounts.google" in low or "request access" in low or "access denied" in low or "доступ" in low:
+            return ("Google Диск не дал скачать: у файла закрытый доступ. На Диске: правый клик по файлу → «Открыть доступ» → "
+                    "в разделе «Общий доступ» выберите «Все, у кого есть ссылка» (роль «Читатель») и скопируйте ссылку заново.")
+        if "quota" in low or "too many users" in low or "превышен" in low:
+            return "Google Диск временно ограничил скачивание этого файла (много обращений). Подождите несколько часов или используйте scp."
+        return ("Google Диск вернул страницу вместо видео. Проверьте, что доступ «Все, у кого есть ссылка», "
+                "или залейте файл на сервер напрямую (scp / WinSCP), см. ИНСТРУКЦИЯ.md, способ Б.")
+    return ("По ссылке открывается страница, а не видео. Нужна прямая ссылка на файл "
+            "(на Pexels: «Бесплатное скачивание» → правой кнопкой «Копировать адрес ссылки»).")
 
 
 def add_background(source: str, cfg: dict, keep_source: bool = False) -> Path:
@@ -205,11 +220,11 @@ def add_background(source: str, cfg: dict, keep_source: bool = False) -> Path:
         out = folder / f"{Path(name).stem}_{n}{Path(name).suffix}"
         n += 1
     with requests.get(url, stream=True, timeout=60, headers={"User-Agent": "Mozilla/5.0"}) as r:
-        r.raise_for_status()
+        if r.status_code >= 400:
+            raise ValueError(_html_hint(url, r.text[:3000]) if r.status_code in (401, 403, 404) else f"сервер ответил {r.status_code}")
         ctype = r.headers.get("content-type", "")
         if "text/html" in ctype:
-            raise ValueError("По ссылке открывается страница, а не видео. Нужна прямая ссылка на файл "
-                             "(на Pexels: кнопка «Бесплатное скачивание» → правой кнопкой «Копировать адрес ссылки»).")
+            raise ValueError(_html_hint(url, r.text[:20000]))
         total = 0
         with out.open("wb") as f:
             for chunk in r.iter_content(1 << 20):

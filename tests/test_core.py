@@ -176,3 +176,17 @@ def test_youtube_resumable_upload_resumes_after_drop(tmp_path, monkeypatch):
     assert youtube.upload(row, DEFAULTS) == "abc123"
     assert calls[0] == ("init", "10")
     assert calls[-1] == ("put", "bytes 4-9/10", b"456789")
+
+
+def test_direct_link_and_hints():
+    from faceless.setup_wizard import _html_hint, direct_link
+
+    drive = direct_link("https://drive.google.com/file/d/1rk7VOTUHuD4l1RgN6WUC6LUDYTrSJCbB/view?usp=sharing")
+    assert drive == ("https://drive.usercontent.google.com/download?id=1rk7VOTUHuD4l1RgN6WUC6LUDYTrSJCbB"
+                     "&export=download&confirm=t")
+    assert direct_link("https://drive.google.com/open?id=ABC_1").endswith("id=ABC_1&export=download&confirm=t")
+    assert direct_link("https://www.dropbox.com/s/x/a.mp4?dl=0").endswith("a.mp4?dl=1")
+    assert direct_link("https://www.dropbox.com/s/x/a.mp4").endswith("a.mp4?dl=1")
+    assert direct_link("https://videos.pexels.com/a.mp4") == "https://videos.pexels.com/a.mp4"
+    assert "Все, у кого есть ссылка" in _html_hint(drive, "<html>Sign in to continue</html>")
+    assert "Pexels" in _html_hint("https://example.com/x", "<html></html>")
