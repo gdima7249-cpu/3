@@ -24,12 +24,15 @@ GRADIENTS = [  # палитры мягких «живых» фонов: тёмн
 
 
 def ensure_backgrounds(folder: Path) -> Path:
-    """Если своих фонов нет, один раз делаем несколько спокойных анимированных градиентов (≈1 МБ каждый)."""
+    """Если своих фонов нет, один раз делаем несколько спокойных анимированных градиентов.
+
+    Градиент гладкий, поэтому считаем его в малом разрешении (360x640): так создание занимает секунды, а не минуты;
+    при сборке ролика кадр всё равно растягивается до нужного размера."""
     folder.mkdir(parents=True, exist_ok=True)
     if not any(p.suffix.lower() in VIDEO_EXT for p in folder.glob("*")):
         for i, (c0, c1, c2) in enumerate(GRADIENTS, 1):
             media.run(["ffmpeg", "-y", "-f", "lavfi", "-i",
-                       f"gradients=s=720x1280:r=30:c0={c0}:c1={c1}:c2={c2}:nb_colors=3:speed=0.02:duration=60:seed={i}",
+                       f"gradients=s=360x640:r=24:c0={c0}:c1={c1}:c2={c2}:nb_colors=3:speed=0.02:duration=40:seed={i}",
                        "-c:v", "libx264", "-preset", "veryfast", "-crf", "30", "-pix_fmt", "yuv420p", "-threads", "1",
                        "-movflags", "+faststart", str(folder / f"auto_gradient_{i}.mp4")])
     return folder
@@ -63,8 +66,8 @@ def render(*, voice: Path, subs: Path, card: Path, title_end: float, duration: f
     vf = (
         f"[0:v]scale={zw}:{zh}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1,fps={fps}{mirror},"
         f"eq=brightness=-0.04:saturation=1.1[bg];"
-        f"[2:v]format=rgba,fade=in:st=0:d=0.2:alpha=1,fade=out:st={card_end - 0.15:.2f}:d=0.15:alpha=1[card];"
-        f"[bg][card]overlay=(W-w)/2:(H-h)/2-80:enable='lte(t,{card_end:.2f})'[v1];"
+        f"[2:v]scale=iw*{w / 1080:.4f}:-2,format=rgba,fade=in:st=0:d=0.2:alpha=1,fade=out:st={card_end - 0.15:.2f}:d=0.15:alpha=1[card];"
+        f"[bg][card]overlay=(W-w)/2:(H-h)/2-{int(80 * w / 1080)}:enable='lte(t,{card_end:.2f})'[v1];"
         f"[v1]ass={subs.name}[v]"
     )
     if music:
@@ -74,7 +77,7 @@ def render(*, voice: Path, subs: Path, card: Path, title_end: float, duration: f
         af = "[1:a]aresample=44100,apad,loudnorm=I=-14:TP=-1.5:LRA=11[a]"
 
     cmd += ["-filter_complex", f"{vf};{af}", "-map", "[v]", "-map", "[a]", "-t", f"{total:.2f}",
-            "-c:v", "libx264", "-preset", vc["preset"], "-crf", "21",
+            "-c:v", "libx264", "-preset", vc["preset"], "-crf", str(vc.get("crf", 23)),
             "-threads", str(vc["threads"]), "-pix_fmt", "yuv420p",
             "-r", str(fps), "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-movflags", "+faststart",
             str(out.resolve())]

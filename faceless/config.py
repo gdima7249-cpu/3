@@ -24,7 +24,7 @@ DEFAULTS: dict = {
         "elevenlabs_voice_ids": [], "elevenlabs_model": "eleven_multilingual_v2",
     },
     "video": {
-        "width": 1080, "height": 1920, "fps": 30, "max_part_seconds": 60,
+        "width": 720, "height": 1280, "fps": 30, "crf": 23, "max_part_seconds": 60,
         "font": "Inter", "font_size": 92, "words_per_caption": 3,
         "highlight_colors": ["&H0000F0FF", "&H0055FF55", "&H00FFD24D"],
         "music_volume": 0.07, "mirror_chance": 0.5,

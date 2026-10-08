@@ -7,7 +7,7 @@ Type=oneshot
 WorkingDirectory=/opt/faceless/app
 # Пока нет ключа Gemini/Claude, запуск тихо пропускается (не ошибка)
 ExecCondition=/opt/faceless/app/.venv/bin/python -m faceless ready
-ExecStart=/opt/faceless/app/.venv/bin/python -m faceless make --fill
+ExecStart=/opt/faceless/app/.venv/bin/python -m faceless make --fill --max 3
 User=faceless
 # Telegram-бот на этом же сервере всегда в приоритете: рендер получает CPU/диск по остаточному принципу
 Nice=15

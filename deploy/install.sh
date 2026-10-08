@@ -112,10 +112,12 @@ if [ "\$1" = "autopilot" ]; then
   case "\$2" in
     on)  systemctl enable --now faceless-make.timer faceless-publish.timer faceless-telegram.timer && echo "Автопилот включён." ;;
     off) systemctl disable --now faceless-make.timer faceless-publish.timer faceless-telegram.timer && echo "Автопилот выключен." ;;
-    run) echo "Собираю ролики (это может занять 5-15 минут), подождите..."
-         if systemctl start faceless-make.service; then echo "Готово. Проверьте: faceless status"
-         else echo; echo "Не получилось. Причина (последние строки журнала):"; echo
-              journalctl -u faceless-make -n 40 --no-pager -o cat; fi ;;
+    run) systemctl reset-failed faceless-make.service 2>/dev/null
+         if systemctl is-active --quiet faceless-make.service; then echo "Сборка уже идёт."
+         else systemctl start --no-block faceless-make.service; fi
+         echo "Сборка идёт в фоне (на слабом сервере каждый ролик займёт 2-5 минут)."
+         echo "Ниже живой ход работы. Выйти из просмотра: Ctrl+C (сборка при этом продолжится)."; echo
+         exec journalctl -fu faceless-make -n 0 -o cat ;;
     log) journalctl -u faceless-make -n 60 --no-pager -o cat ;;
     *)   systemctl list-timers 'faceless-*' --no-pager ;;
   esac

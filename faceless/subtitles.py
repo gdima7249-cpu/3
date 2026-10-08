@@ -40,6 +40,8 @@ def _escape(text: str) -> str:
 def build_ass(words: list[Word], *, start_at: float, end_at: float, width: int, height: int,
               font: str, font_size: int, highlight: str, max_words: int = 3) -> str:
     """start_at — с какого момента показывать субтитры (после карточки-заголовка)."""
+    k = font_size / 92  # во сколько раз кадр меньше базового (1080 px)
+    outline, shadow, margin = max(3, round(7 * k)), max(1, round(3 * k)), round(80 * k)
     header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {width}
@@ -49,7 +51,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Main,{font},{font_size},&H00FFFFFF,&H00FFFFFF,&H00000000,&H96000000,-1,0,0,0,100,100,0,0,1,7,3,5,80,80,0,1
+Style: Main,{font},{font_size},&H00FFFFFF,&H00FFFFFF,&H00000000,&H96000000,-1,0,0,0,100,100,0,0,1,{outline},{shadow},5,{margin},{margin},0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

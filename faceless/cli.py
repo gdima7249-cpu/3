@@ -106,6 +106,7 @@ def main(argv: list[str] | None = None) -> None:
     mk = sub.add_parser("make", help="собрать N роликов из свежих постов")
     mk.add_argument("-n", "--count", type=int, default=1)
     mk.add_argument("-s", "--subreddit")
+    mk.add_argument("--max", type=int, dest="limit", help="с --fill: собрать не больше N историй за этот запуск")
     mk.add_argument("--fill", action="store_true", help="пополнить очередь до autopilot.queue_target (для автопилота)")
     mk.add_argument("--seed", type=int)
 
@@ -150,7 +151,7 @@ def main(argv: list[str] | None = None) -> None:
         from . import telegram
 
         try:
-            made = pipeline.make(cfg, args.count, args.subreddit, args.seed, args.fill)
+            made = pipeline.make(cfg, args.count, args.subreddit, args.seed, args.fill, args.limit)
         except Exception as e:
             telegram.notify(f"⚠️ faceless: сборка роликов упала: {e}")
             raise

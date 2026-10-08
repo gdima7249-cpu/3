@@ -51,14 +51,16 @@ def produce(post: Post, script: Script, cfg: dict, store: Store, rng: random.Ran
     outputs = []
     for part, slot in zip(parts, slots):
         work = base / f"part{part.index}"
+        log.info("«%s», часть %d/%d: озвучиваю…", script.title[:50], part.index, part.total)
         speech = tts.synthesize(part.title, part.body, work, cfg, random.Random(voice_rng_seed))
         ass = work / "subs.ass"
         ass.write_text(subtitles.build_ass(
             speech.words, start_at=speech.title_end, end_at=speech.duration + 0.6,
-            width=vc["width"], height=vc["height"], font=vc["font"], font_size=vc["font_size"],
+            width=vc["width"], height=vc["height"], font=vc["font"], font_size=round(vc["font_size"] * vc["width"] / 1080),
             highlight=highlight, max_words=vc["words_per_caption"]), encoding="utf-8")
         card_png = card.render_card(part.title, post.subreddit, work / "card.png", score=post.score or None)
         out = base / f"part{part.index}.mp4"
+        log.info("  голос готов (%.0f с), собираю видео…", speech.duration)
         render.render(voice=speech.audio, subs=ass, card=card_png, title_end=speech.title_end,
                       duration=speech.duration, out=out, cfg=cfg, rng=rng)
 
@@ -162,12 +164,13 @@ def _make_generated(cfg: dict, store: Store, rng: random.Random, count: int) -> 
     return made
 
 
-def make(cfg: dict, count: int, subreddit: str | None = None, seed: int | None = None, fill: bool = False) -> list[Path]:
+def make(cfg: dict, count: int, subreddit: str | None = None, seed: int | None = None, fill: bool = False,
+         limit: int | None = None) -> list[Path]:
     """fill=True: не больше, чем нужно, чтобы очередь готовых роликов дошла до autopilot.queue_target."""
     store = Store(cfg["paths"]["db"])
     if fill:
         made: list[Path] = []
-        for _ in range(8):  # страховка от бесконечного цикла, если истории не получаются
+        for _ in range(limit or 8):  # страховка от бесконечного цикла, если истории не получаются
             if store.undelivered() >= cfg["autopilot"]["queue_target"]:
                 break
             new = _make(cfg, store, 1, subreddit, random.Random(seed))
