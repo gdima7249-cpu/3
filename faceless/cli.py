@@ -65,6 +65,12 @@ def _demo_background(path: Path, seconds: int = 30) -> Path:
     return path
 
 
+def _inbox_waiting(cfg: dict, store: Store) -> list[tuple[str, str]]:
+    from . import inbox
+
+    return [(t, b) for t, b in inbox.load(cfg["paths"]["inbox"]) if not store.seen(inbox.story_id(t))]
+
+
 def _print_overview(cfg: dict) -> None:
     """Короткая сводка «что настроено, а что нет» — чтобы всегда было видно состояние."""
     from . import __version__
@@ -104,6 +110,12 @@ def main(argv: list[str] | None = None) -> None:
     ff.add_argument("path")
 
     sub.add_parser("candidates", help="показать подходящие посты, ничего не рендеря")
+    sub.add_parser("queue", help="показать очередь: готовые ролики и истории в inbox, ожидающие своей очереди")
+    cn = sub.add_parser("cancel", help="отменить готовый ролик (и все части его истории): faceless cancel НОМЕР")
+    cn.add_argument("id", type=int, help="номер ролика из `faceless queue`")
+    cn.add_argument("--only-this", action="store_true", help="отменить только эту часть, а не всю историю")
+    sk = sub.add_parser("skip", help="выкинуть историю из inbox, пока она не использована: faceless skip НОМЕР")
+    sk.add_argument("number", type=int, help="номер истории из `faceless queue`")
     ib = sub.add_parser("inbox", help="добавить пачку историй в очередь (вставкой или из файла)")
     ib.add_argument("file", nargs="?", help="файл с историями (необязательно; без него вставьте текст)")
     sub.add_parser("story", help="вставить историю вручную (заголовок и текст) и сделать из неё ролик")
@@ -148,6 +160,37 @@ def main(argv: list[str] | None = None) -> None:
                    "добавляйте истории вручную командой faceless inbox.")
             telegram.notify("⚠️ faceless: " + msg)
             raise SystemExit(msg)
+    elif args.cmd == "queue":
+        store = Store(cfg["paths"]["db"])
+        rows = store.queue()
+        print("ГОТОВЫЕ РОЛИКИ (ещё не доставлены):" if rows else "Готовых роликов в очереди нет.")
+        for r in rows:
+            part = f", часть {r['part']}/{r['parts']}" if r["parts"] > 1 else ""
+            print(f"  №{r['id']:<4} {r['publish_at'][:16].replace('T', ' ')} UTC  {r['title'][:70]}{part}")
+        waiting = _inbox_waiting(cfg, store)
+        print("\nИСТОРИИ В inbox.txt (ещё не использованы):" if waiting else "\nИстории в inbox.txt закончились.")
+        for n, (title, _) in enumerate(waiting, 1):
+            print(f"  #{n:<3} {title[:80]}")
+        if rows or waiting:
+            print("\nОтменить ролик: faceless cancel НОМЕР    Убрать историю: faceless skip НОМЕР")
+    elif args.cmd == "cancel":
+        store = Store(cfg["paths"]["db"])
+        done = store.cancel(args.id, whole_story=not args.only_this)
+        if not done:
+            raise SystemExit("Такого ролика нет в очереди (возможно, он уже доставлен или отменён). Список: faceless queue")
+        for r in done:
+            Path(r["path"]).unlink(missing_ok=True)
+        print(f"Отменено роликов: {len(done)} («{done[0]['title'][:60]}»). Файлы удалены, они не будут отправлены.")
+    elif args.cmd == "skip":
+        store = Store(cfg["paths"]["db"])
+        waiting = _inbox_waiting(cfg, store)
+        if not 1 <= args.number <= len(waiting):
+            raise SystemExit("Нет истории с таким номером. Список: faceless queue")
+        from . import inbox
+
+        title = waiting[args.number - 1][0]
+        store.mark_post(inbox.story_id(title), "", title, "skipped", "removed by user")
+        print(f"Убрано из очереди: «{title[:70]}». Она больше не будет использована.")
     elif args.cmd == "inbox":
         from . import inbox
 

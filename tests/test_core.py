@@ -282,3 +282,35 @@ def test_ipv4_only_context_restores_state():
     assert conn.HAS_IPV6 == before
     with ipv4_only(False):
         assert conn.HAS_IPV6 == before
+
+
+def test_queue_cancel_and_skip(tmp_path):
+    from faceless import inbox, pipeline
+    from faceless.cli import _inbox_waiting, main
+    from faceless.storage import Store
+
+    db = tmp_path / "db.sqlite3"
+    store = Store(db)
+    files = []
+    for part in (1, 2):
+        f = tmp_path / f"p{part}.mp4"
+        f.write_bytes(b"x")
+        files.append(f)
+        store.add_video(post_id="s1", part=part, parts=2, path=f, title="Story one", description="d", tags=[],
+                        publish_at=f"2030-01-0{part}T00:00:00+00:00")
+    f3 = tmp_path / "other.mp4"
+    f3.write_bytes(b"x")
+    store.add_video(post_id="s2", part=1, parts=1, path=f3, title="Story two", description="d", tags=[],
+                    publish_at="2030-01-03T00:00:00+00:00")
+    assert store.undelivered() == 3
+    assert len(store.cancel(1)) == 2            # отменяются обе части истории
+    assert store.undelivered() == 1 and store.cancel(1) == []   # повторная отмена ничего не делает
+    assert [r["title"] for r in store.pending("telegram")] == ["Story two"]
+
+    inb = tmp_path / "inbox.txt"
+    inbox.append(inb, ("TITLE: A\n" + "alpha beta gamma delta. " * 5 + "\n---\nTITLE: B\n" + "one two three four. " * 5))
+    cfgfile = tmp_path / "config.toml"
+    cfgfile.write_text(f'[paths]\ndb = "{db}"\ninbox = "{inb}"\n')
+    main(["-c", str(cfgfile), "skip", "1"])
+    from faceless.config import load_config
+    assert [t for t, _ in _inbox_waiting(load_config(cfgfile), Store(db))] == ["B"]

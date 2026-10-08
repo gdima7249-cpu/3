@@ -37,6 +37,8 @@ class Store:
         for col in ("telegram_id", "telegram_error"):  # миграция баз, созданных до появления Telegram
             if col not in cols:
                 self.db.execute(f"ALTER TABLE videos ADD COLUMN {col} TEXT")
+        if "cancelled" not in cols:
+            self.db.execute("ALTER TABLE videos ADD COLUMN cancelled INTEGER DEFAULT 0")
 
     def seen(self, post_id: str) -> bool:
         return self.db.execute("SELECT 1 FROM posts WHERE id=?", (post_id,)).fetchone() is not None
@@ -65,14 +67,36 @@ class Store:
     def undelivered(self) -> int:
         """Готовые ролики, которые ещё никуда не ушли (очередь, которую надо держать заполненной)."""
         return self.db.execute("SELECT COUNT(*) FROM videos WHERE youtube_id IS NULL AND tiktok_id IS NULL "
-                               "AND telegram_id IS NULL").fetchone()[0]
+                               "AND telegram_id IS NULL AND cancelled = 0").fetchone()[0]
+
+    def queue(self) -> list:
+        """Готовые, но ещё никуда не доставленные и не отменённые ролики."""
+        return list(self.db.execute("SELECT * FROM videos WHERE youtube_id IS NULL AND tiktok_id IS NULL "
+                                    "AND telegram_id IS NULL AND cancelled = 0 ORDER BY publish_at, id"))
+
+    def cancel(self, video_id: int, whole_story: bool = True) -> list:
+        """Отменяет ролик (и по умолчанию все части той же истории), возвращает отменённые строки."""
+        row = self.db.execute("SELECT * FROM videos WHERE id=?", (video_id,)).fetchone()
+        if row is None:
+            return []
+        if whole_story:
+            rows = list(self.db.execute("SELECT * FROM videos WHERE post_id=? AND youtube_id IS NULL "
+                                        "AND tiktok_id IS NULL AND telegram_id IS NULL AND cancelled = 0",
+                                        (row["post_id"],)))
+        else:
+            rows = [row] if not (row["youtube_id"] or row["tiktok_id"] or row["telegram_id"] or row["cancelled"]) else []
+        for r in rows:
+            self.db.execute("UPDATE videos SET cancelled=1 WHERE id=?", (r["id"],))
+        self.db.commit()
+        return rows
 
     def taken_slots(self) -> set[str]:
         return {r[0] for r in self.db.execute("SELECT publish_at FROM videos WHERE publish_at IS NOT NULL")}
 
     def pending(self, platform: str) -> list[sqlite3.Row]:
         col = f"{platform}_id"
-        return list(self.db.execute(f"SELECT * FROM videos WHERE {col} IS NULL ORDER BY publish_at, id"))
+        return list(self.db.execute(f"SELECT * FROM videos WHERE {col} IS NULL AND cancelled = 0 "
+                                    "ORDER BY publish_at, id"))
 
     def set_result(self, video_id: int, platform: str, remote_id: str | None, error: str | None) -> None:
         self.db.execute(f"UPDATE videos SET {platform}_id=?, {platform}_error=? WHERE id=?",
