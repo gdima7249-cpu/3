@@ -19,6 +19,7 @@ free_mb() { df -Pm "$1" | awk 'NR==2 {print $4}'; }
 ROOT_FREE=$(free_mb /)
 NEED_MB=500                                   # программа ~150 МБ + запас под фоны и ролики
 command -v ffmpeg >/dev/null || NEED_MB=900   # ffmpeg с зависимостями ещё ~400 МБ
+[ -x "$APP/.venv/bin/python" ] && NEED_MB=100   # обновление уже установленной программы: нужно немного
 if [ "$ROOT_FREE" -lt "$NEED_MB" ]; then
   printf '\n\033[1;31mНа диске свободно всего %s МБ, а нужно минимум %s МБ.\033[0m\n' "$ROOT_FREE" "$NEED_MB"
   echo "Что занимает место:"
