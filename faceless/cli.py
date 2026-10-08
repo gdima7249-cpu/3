@@ -79,7 +79,7 @@ def _print_overview(cfg: dict) -> None:
     print(f"  {mark(secrets.exists())} Файл Google (client_secret.json)")
     print(f"  {mark(token.exists())} Вход в YouTube")
     print(f"  {mark(cfg['telegram']['enabled'])} Доставка роликов в Telegram")
-    print(f"  {mark(bool(bgs))} Фоновые видео: {len(bgs)}" + ("" if bgs else "   (добавить: faceless add-background ССЫЛКА)"))
+    print(f"  {mark(True)} Фоновые видео: {len(bgs)}" + ("" if bgs else "   (не обязательно: программа сама создаст фоны; свои: faceless add-background ССЫЛКА)"))
     print(f"  Свободно на диске: {free_mb} МБ")
     if not (secrets.exists() and token.exists()) and not cfg["telegram"]["enabled"]:
         print("  Дальше: faceless setup")
