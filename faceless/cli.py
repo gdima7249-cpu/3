@@ -104,7 +104,10 @@ def main(argv: list[str] | None = None) -> None:
         pipeline.publish(cfg, dry_run=args.dry_run)
     elif args.cmd == "setup":
         from . import setup_wizard
-        setup_wizard.run(cfg, args.config)
+        try:
+            setup_wizard.run(cfg, args.config)
+        except (KeyboardInterrupt, EOFError):
+            raise SystemExit("\nНастройка прервана. Всё, что вы успели ввести, сохранено. Запустите `faceless setup` снова, когда будете готовы.")
     elif args.cmd == "add-background":
         from . import setup_wizard
         try:

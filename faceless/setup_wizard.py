@@ -60,7 +60,10 @@ def _paste_json() -> dict | None:
 
 def run(cfg: dict, config_path: str) -> None:
     root = Path(config_path).resolve().parent
-    print("=== Настройка faceless ===\n")
+    print("=== Настройка faceless ===")
+    print("Программа будет задавать вопросы по одному. После каждого ответа нажимайте Enter.")
+    print("Если ответа пока нет, просто нажмите Enter: вопрос пропустится, к нему можно вернуться позже")
+    print("повторным запуском `faceless setup`. Отменить всё: Ctrl+C.\n")
 
     cfg_file = root / "config.toml"
     if not cfg_file.exists() and (root / "config.example.toml").exists():
@@ -69,10 +72,10 @@ def run(cfg: dict, config_path: str) -> None:
 
     env_path = root / ".env"
     env = _read_env(env_path)
-    for key, hint in ENV_KEYS:
+    for n, (key, hint) in enumerate(ENV_KEYS, 1):
         current = env.get(key, "")
         shown = f" [сейчас: {current[:6]}…]" if current else ""
-        value = input(f"{hint}{shown}\n> ").strip()
+        value = input(f"Вопрос {n} из {len(ENV_KEYS)}. {hint}{shown}\n(пусто + Enter = пропустить) > ").strip()
         if value:
             env[key] = value
         print()
