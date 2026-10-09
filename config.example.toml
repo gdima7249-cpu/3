@@ -27,9 +27,9 @@ min_quality = 6         # Claude оценивает «смотрибельнос
 
 [tts]
 engine = "edge"         # edge | elevenlabs | silent (silent — для тестов без сети)
-voices = ["en-US-ChristopherNeural", "en-US-AriaNeural", "en-US-GuyNeural", "en-US-JennyNeural"]
+voices = ["en-US-AndrewMultilingualNeural", "en-US-AvaMultilingualNeural", "en-US-BrianMultilingualNeural", "en-US-EmmaMultilingualNeural"]
 # для ru: ["ru-RU-DmitryNeural", "ru-RU-SvetlanaNeural"]
-rate = "+12%"           # чуть быстрее нормы — лучше удержание
+rate = "+8%"            # чуть быстрее нормы — лучше удержание
 elevenlabs_voice_ids = []
 elevenlabs_model = "eleven_multilingual_v2"
 
@@ -65,6 +65,12 @@ enabled = false         # true — бот присылает готовый ро
 [tiktok]
 enabled = false
 privacy_level = "SELF_ONLY"         # неаудированные приложения могут постить только SELF_ONLY
+
+[broll]
+enabled = true          # видео по теме истории с Pexels (нужен бесплатный ключ PEXELS_API_KEY), иначе обычный фон
+scene_seconds = 5.5     # как часто меняется кадр
+dim = 0.14              # затемнение, чтобы субтитры читались
+cache_mb = 150          # сколько места держать под скачанные клипы
 
 [autopilot]
 queue_target = 6   # сколько готовых, ещё не доставленных роликов держать в запасе; пополнение — `faceless make --fill`

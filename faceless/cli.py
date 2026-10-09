@@ -102,6 +102,8 @@ def _print_overview(cfg: dict) -> None:
     left = pipeline.inbox_left(cfg)
     print(f"  {mark(left > 0 or adapt.llm_provider(cfg) is not None)} Источник историй: "
           f"ИИ {'подключён' if adapt.llm_provider(cfg) else 'не подключён'}, в inbox.txt ждут: {left}")
+    pex = bool(os.environ.get("PEXELS_API_KEY"))
+    print(f"  {mark(pex)} Видео по теме истории (Pexels)" + ("" if pex else "   (бесплатный ключ: pexels.com/api, затем faceless setup)"))
     print(f"  {mark(True)} Фоновые видео: {len(bgs)}" + ("" if bgs else "   (не обязательно: программа сама создаст фоны; свои: faceless add-background ССЫЛКА)"))
     print(f"  Свободно на диске: {free_mb} МБ")
     if not (secrets.exists() and token.exists()) and not cfg["telegram"]["enabled"]:

@@ -39,10 +39,12 @@ def ensure_backgrounds(folder: Path) -> Path:
 
 
 def render(*, voice: Path, subs: Path, card: Path, title_end: float, duration: float, out: Path,
-           cfg: dict, rng: random.Random) -> Path:
+           cfg: dict, rng: random.Random, background: Path | None = None, dim: float = 0.0) -> Path:
     vc, paths = cfg["video"], cfg["paths"]
     w, h, fps = vc["width"], vc["height"], vc["fps"]
-    background = _pick(Path(paths["backgrounds_dir"]), VIDEO_EXT, rng)
+    custom_bg = background is not None  # готовый видеофон нужной длины (Pexels): не крутим и не отрезаем кусок
+    if background is None:
+        background = _pick(Path(paths["backgrounds_dir"]), VIDEO_EXT, rng)
     if background is None:
         background = _pick(ensure_backgrounds(Path(paths["backgrounds_dir"])), VIDEO_EXT, rng)
     music = _pick(Path(paths["music_dir"]), AUDIO_EXT, rng)
@@ -50,7 +52,9 @@ def render(*, voice: Path, subs: Path, card: Path, title_end: float, duration: f
     total = duration + 0.6  # небольшой хвост после последнего слова
     bg_len = media.duration(background)
     cmd = ["ffmpeg", "-y"]
-    if bg_len > total + 1:
+    if custom_bg:
+        pass
+    elif bg_len > total + 1:
         cmd += ["-ss", f"{rng.uniform(0, bg_len - total - 1):.2f}"]  # каждый раз другой кусок фона
     else:
         cmd += ["-stream_loop", "-1"]
@@ -58,6 +62,9 @@ def render(*, voice: Path, subs: Path, card: Path, title_end: float, duration: f
             "-loop", "1", "-i", str(card.resolve())]
     if music:
         cmd += ["-stream_loop", "-1", "-i", str(music.resolve())]
+    bar_h = max(5, round(8 * w / 720))  # полоса прогресса сверху: зритель видит, сколько осталось, и досматривает
+    cmd += ["-f", "lavfi", "-i", f"color=c=white@0.85:s={w}x{bar_h}:r={fps}:d={total:.2f}"]
+    bar_idx = 4 if music else 3
 
     mirror = ",hflip" if rng.random() < vc["mirror_chance"] else ""
     zoom = rng.uniform(1.0, 1.08)  # лёгкий случайный кроп, чтобы кадры не совпадали между роликами
@@ -65,10 +72,12 @@ def render(*, voice: Path, subs: Path, card: Path, title_end: float, duration: f
     card_end = max(title_end, 1.2)
     vf = (
         f"[0:v]scale={zw}:{zh}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1,fps={fps}{mirror},"
-        f"eq=brightness=-0.04:saturation=1.1[bg];"
+        f"eq=brightness={-0.04 - dim:.2f}:saturation=1.1[bg];"
         f"[2:v]scale=iw*{w / 1080:.4f}:-2,format=rgba,fade=in:st=0:d=0.2:alpha=1,fade=out:st={card_end - 0.15:.2f}:d=0.15:alpha=1[card];"
         f"[bg][card]overlay=(W-w)/2:(H-h)/2-{int(80 * w / 1080)}:enable='lte(t,{card_end:.2f})'[v1];"
-        f"[v1]ass={subs.name}[v]"
+        f"[{bar_idx}:v]format=rgba[bar];"
+        f"[v1][bar]overlay=x='-w+w*t/{total:.2f}':y=0:shortest=1[v2];"
+        f"[v2]ass={subs.name}[v]"
     )
     if music:
         af = (f"[1:a]aresample=44100,apad[voice];[3:a]aresample=44100,volume={vc['music_volume']}[bgm];"

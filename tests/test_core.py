@@ -388,3 +388,43 @@ def test_send_now_and_relative_time(tmp_path, monkeypatch, capsys):
     main(["-c", str(cfgfile), "send"])
     assert "Отправлено" in capsys.readouterr().out
     assert Store(db).videos()[0]["telegram_id"] == "777" and Store(db).undelivered() == 0
+
+
+def test_broll_pick_file_and_visuals_line():
+    from faceless import broll, inbox
+
+    video = {"id": 1, "video_files": [
+        {"file_type": "video/mp4", "width": 3840, "height": 2160, "link": "landscape4k"},
+        {"file_type": "video/mp4", "width": 2160, "height": 3840, "link": "portrait4k"},
+        {"file_type": "video/mp4", "width": 1080, "height": 1920, "link": "portrait_hd"},
+        {"file_type": "video/mp4", "width": 720, "height": 1280, "link": "portrait_720"},
+        {"file_type": "video/webm", "width": 720, "height": 1280, "link": "webm"}]}
+    assert broll.pick_file(video) == "portrait_720"          # вертикальный, не 4K, ближе всего к 720
+    assert broll.pick_file({"video_files": [{"file_type": "video/mp4", "width": 1920, "height": 1080, "link": "x"}]}) is None
+
+    body, vis = inbox.split_visuals("Story text here.\nVISUALS: Coffee machine, office; night street.\n")
+    assert body == "Story text here." and vis == ["Coffee machine", "office", "night street"]
+    assert inbox.split_visuals("No keywords here.") == ("No keywords here.", [])
+
+
+def test_broll_build_for_with_fake_pexels(tmp_path, monkeypatch):
+    import random
+    import shutil
+    import subprocess
+
+    from faceless import broll, media
+    from faceless.config import DEFAULTS, _merge
+
+    clip = tmp_path / "src.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=360x640:r=24", "-t", "7",
+                    "-c:v", "libx264", "-preset", "ultrafast", str(clip)], check=True)
+    monkeypatch.setattr(broll, "search", lambda q, key, per_page=15: [
+        {"id": i, "video_files": [{"file_type": "video/mp4", "width": 720, "height": 1280, "link": f"l{i}"}]} for i in range(1, 6)])
+    monkeypatch.setattr(broll, "download", lambda url, dest: (dest.parent.mkdir(parents=True, exist_ok=True), shutil.copy(clip, dest), dest)[2])
+    monkeypatch.setenv("PEXELS_API_KEY", "x" * 30)
+    cfg = _merge(DEFAULTS, {"paths": {"backgrounds_dir": str(tmp_path / "assets" / "backgrounds")},
+                            "video": {"width": 360, "height": 640, "fps": 24}})
+    assert broll.enabled(cfg)
+    out = broll.build_for(["coffee", "office"], 12.0, tmp_path, cfg, random.Random(1))
+    assert media.duration(out) >= 14.0                      # длительность + запас
+    assert (tmp_path / "assets" / "broll_cache").exists()

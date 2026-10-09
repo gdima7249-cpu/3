@@ -43,6 +43,18 @@ def parse(text: str) -> list[tuple[str, str]]:
     return out
 
 
+_VISUALS = re.compile(r"^[ \t]*\**(?:visuals?|keywords?)\**[ \t]*[:：][ \t]*\**(.+?)\**[ \t]*$", re.I | re.M)
+
+
+def split_visuals(body: str) -> tuple[str, list[str]]:
+    """Отделяет строку «VISUALS: coffee, office, night street» от текста истории."""
+    m = _VISUALS.search(body)
+    if not m:
+        return body, []
+    words = [w.strip(" .*\"'") for w in re.split(r"[,;]", m.group(1)) if w.strip(" .*\"'")]
+    return (body[:m.start()] + body[m.end():]).strip(), words[:8]
+
+
 def load(path: str | Path) -> list[tuple[str, str]]:
     p = Path(path)
     return parse(p.read_text(encoding="utf-8")) if p.exists() else []

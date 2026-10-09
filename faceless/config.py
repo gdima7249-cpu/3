@@ -20,7 +20,9 @@ DEFAULTS: dict = {
              "min_quality": 6,
              "ipv4_only": True},  # к Gemini ходим только по IPv4 (см. adapt.ipv4_only)
     "tts": {
-        "engine": "edge", "voices": ["en-US-ChristopherNeural", "en-US-AriaNeural", "en-US-GuyNeural", "en-US-JennyNeural"], "rate": "+12%",
+        "engine": "edge", "rate": "+8%",
+        "voices": ["en-US-AndrewMultilingualNeural", "en-US-AvaMultilingualNeural",
+                   "en-US-BrianMultilingualNeural", "en-US-EmmaMultilingualNeural"],
         "elevenlabs_voice_ids": [], "elevenlabs_model": "eleven_multilingual_v2",
     },
     "video": {
@@ -38,6 +40,8 @@ DEFAULTS: dict = {
     },
     "tiktok": {"enabled": False, "privacy_level": "SELF_ONLY"},
     "telegram": {"enabled": False},
+    # Видеофон по теме истории (Pexels): кадры меняются каждые ~5 секунд. Нужен бесплатный ключ PEXELS_API_KEY
+    "broll": {"enabled": True, "scene_seconds": 5.5, "dim": 0.14, "cache_mb": 150},
     "autopilot": {"queue_target": 6},  # сколько готовых, но ещё не доставленных роликов держать в запасе
     "stories": {
         # auto: Reddit, только если есть ключи Reddit; иначе ИИ придумывает истории. reddit | generate — принудительно

@@ -31,6 +31,8 @@ The goal is that a real viewer watches to the very end:
   be spoken. End with a question to the viewer or a strong payoff. The body must be at most {max_chars} characters.
 - description: 1-2 sentences for the video description plus 3-5 hashtags.
 - tags: 5-10 tags without "#".
+- visuals: 4 to 6 short ENGLISH keywords (1-2 words each) for concrete things that could be filmed as stock video to
+  illustrate this story (for example "coffee machine", "office", "night street"). No people's names.
 - quality: 1 to 10, how well this story will hold a viewer (plot, emotion, payoff). Score low for boring,
   unresolved, overly local or toxic stories.
 Do not invent details, insults, or personal data about real people."""
@@ -43,8 +45,9 @@ SCHEMA = {
         "description": {"type": "string"},
         "tags": {"type": "array", "items": {"type": "string"}},
         "quality": {"type": "integer"},
+        "visuals": {"type": "array", "items": {"type": "string"}},
     },
-    "required": ["title", "body", "description", "tags", "quality"],
+    "required": ["title", "body", "description", "tags", "quality", "visuals"],
     "additionalProperties": False,
 }
 
@@ -168,7 +171,8 @@ def _gemini_json(cfg: dict, system: str, user: str, what: str, temperature: floa
 
 def _to_script(data: dict) -> Script:
     return Script(title=data["title"].strip(), body=data["body"].strip(), description=data["description"].strip(),
-                  tags=list(data["tags"]), quality=int(data["quality"]))
+                  tags=list(data["tags"]), quality=int(data["quality"]),
+                  visuals=[str(v).strip() for v in data.get("visuals", []) if str(v).strip()][:8])
 
 
 def _max_chars(cfg: dict) -> int:
@@ -207,6 +211,8 @@ Requirements:
 - body: the whole story in first person. Short conversational sentences, no filler, a strong twist, a final line that is a payoff or a question to the viewer. At most {max_chars} characters. Numbers and abbreviations written the way they are spoken.
 - description: 1-2 sentences plus 3-5 hashtags.
 - tags: 5-10 tags without "#".
+- visuals: 4 to 6 short ENGLISH keywords (1-2 words each) for concrete things that could be filmed as stock video to
+  illustrate this story (for example "coffee machine", "office", "night street"). No people's names.
 - quality: 1-10, honest self-assessment of how well this holds a viewer.
 Avoid: real people or brands in a bad light, violence against children, sexual content, hate, self-harm, medical or legal advice, politics.
 Do NOT reuse the plot of any of these recent stories:

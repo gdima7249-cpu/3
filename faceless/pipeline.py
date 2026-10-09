@@ -8,7 +8,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-from . import adapt, card, reddit, render, subtitles, tts
+from . import adapt, broll, card, reddit, render, subtitles, tts
 from .models import Post, Script
 from .schedule import next_slots
 from .storage import Store
@@ -61,7 +61,14 @@ def produce(post: Post, script: Script, cfg: dict, store: Store, rng: random.Ran
         card_png = card.render_card(part.title, post.subreddit, work / "card.png", score=post.score or None)
         out = base / f"part{part.index}.mp4"
         log.info("  голос готов (%.0f с), собираю видео…", speech.duration)
-        render.render(voice=speech.audio, subs=ass, card=card_png, title_end=speech.title_end,
+        bg_file, dim = None, 0.0
+        if broll.enabled(cfg):
+            try:
+                log.info("  подбираю видео по теме: %s", ", ".join(script.visuals) or "общие планы")
+                bg_file, dim = broll.build_for(script.visuals, speech.duration, work, cfg, rng), cfg["broll"]["dim"]
+            except Exception as e:
+                log.warning("Видеофон Pexels недоступен (%s), беру обычный фон", e)
+        render.render(background=bg_file, dim=dim, voice=speech.audio, subs=ass, card=card_png, title_end=speech.title_end,
                       duration=speech.duration, out=out, cfg=cfg, rng=rng)
 
         title = script.title if part.total == 1 else ph["meta_part"].format(
@@ -111,9 +118,10 @@ def _make_from_inbox(cfg: dict, store: Store, rng: random.Random, count: int) ->
         pid = inbox.story_id(title)
         if store.seen(pid):
             continue
+        body, visuals = inbox.split_visuals(body)
         post = Post(id=pid, subreddit="", title=title, body=body, score=0, url="")
         script = Script(title=title, body=body, description=f"{title} #storytime #story",
-                        tags=["storytime", "story", "fiction"], quality=10)
+                        tags=["storytime", "story", "fiction"], quality=10, visuals=visuals)
         try:
             made += produce(post, script, cfg, store, rng)
             store.mark_post(pid, "", title, "done")

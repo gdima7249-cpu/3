@@ -21,6 +21,9 @@ from .models import Word
 from .text import CHARS_PER_SECOND
 
 
+EDGE_FALLBACK = ["en-US-AriaNeural", "en-US-GuyNeural"]  # проверенные старые голоса на случай отказа новых
+
+
 @dataclass
 class Speech:
     audio: Path
@@ -102,10 +105,21 @@ def synthesize(title: str, body: str, workdir: Path, cfg: dict, rng: random.Rand
     voice = rng.choice(tc["voices"]) if tc["voices"] else None
     el_voice = rng.choice(tc["elevenlabs_voice_ids"]) if tc["elevenlabs_voice_ids"] else None
 
+    chosen = [voice]  # если голос не сработал, переходим на запасной и держим его до конца ролика
+
     def say(text: str, name: str) -> tuple[Path, list[Word]]:
         path = workdir / f"{name}.mp3"
         if engine == "edge":
-            words = _edge(text, path, voice, tc["rate"])
+            words, last = None, None
+            for v in [chosen[0], *[f for f in EDGE_FALLBACK if f != chosen[0]]]:
+                try:
+                    words = _edge(text, path, v, tc["rate"])
+                    chosen[0] = v
+                    break
+                except Exception as e:  # неверное имя голоса или сбой сервиса
+                    last = e
+            if words is None:
+                raise last
         elif engine == "elevenlabs":
             if not el_voice:
                 raise ValueError("tts.elevenlabs_voice_ids пуст")

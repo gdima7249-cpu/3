@@ -26,6 +26,7 @@ class Script:
     description: str = ""
     tags: list[str] = field(default_factory=list)
     quality: int = 10     # оценка «смотрибельности» от адаптера
+    visuals: list[str] = field(default_factory=list)  # ключевые слова для видеофона (англ.)
 
 
 @dataclass

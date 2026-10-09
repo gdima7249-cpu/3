@@ -12,6 +12,9 @@ import requests
 GEMINI_KEY = ("GEMINI_API_KEY",
               "Ключ Gemini (его делает бесплатно Google AI Studio: aistudio.google.com/apikey, кнопка Create API key).\n"
               "  Этим ключом программа сама придумывает истории. Скопируйте ключ целиком.")
+PEXELS_KEY = ("PEXELS_API_KEY",
+              "Ключ Pexels (бесплатный, pexels.com/api: нужна регистрация и кнопка Your API Key).\n"
+              "  По нему программа подбирает видео по теме истории вместо скучного фона. Нет ключа: Enter.")
 ENV_KEYS = [
     ("ANTHROPIC_API_KEY", "Ключ Claude (Anthropic): пишет тексты лучше Gemini, но платный.\n"
                           "  Нет ключа: Enter."),
@@ -47,6 +50,8 @@ def _check_value(key: str, value: str) -> str | None:
                 "Файл Google будет запрошен позже, на отдельном шаге. Сейчас нажмите Enter, чтобы пропустить.")
     if " " in value or len(value) > 200:
         return "Ключ не должен содержать пробелов и быть очень длинным. Скопируйте только сам ключ."
+    if key == "PEXELS_API_KEY" and not (20 <= len(value) <= 120 and value.replace("-", "").replace("_", "").isalnum()):
+        return "Ключ Pexels: длинная строка из букв и цифр без пробелов. Скопируйте его целиком."
     if key == "GEMINI_API_KEY" and not (value.startswith(("AIza", "AQ.")) and len(value) > 30):
         return "Ключ Gemini начинается с «AIza» или «AQ.». Проверьте, что скопировали именно его."
     if key == "ANTHROPIC_API_KEY" and not value.startswith("sk-ant"):
@@ -100,7 +105,7 @@ def _ask_key(env: dict, key: str, hint: str, n: int | None = None, total: int | 
 
 def run(cfg: dict, config_path: str, with_keys: bool = False) -> None:
     root = Path(config_path).resolve().parent
-    total = 4 if with_keys else 3
+    total = 5 if with_keys else 4
     print("=== Настройка faceless ===")
     print("Программа ждёт ваш ввод в конце каждого вопроса (знак «>»). Это не зависание.")
     print("Любой шаг можно пропустить, нажав Enter. Отменить всё: Ctrl+C.")
@@ -117,6 +122,12 @@ def run(cfg: dict, config_path: str, with_keys: bool = False) -> None:
     _step(step, total, "Ключ Gemini (ИИ придумывает истории)",
           "Без него автопилот не сможет писать истории. Ключ бесплатный.")
     _ask_key(env, *GEMINI_KEY)
+    _write_env(env_path, env)
+
+    step += 1
+    _step(step, total, "Ключ Pexels (видео по теме истории)",
+          "Из-за него ролик перестанет быть скучным: кадры по теме меняются каждые ~5 секунд.")
+    _ask_key(env, *PEXELS_KEY)
     _write_env(env_path, env)
 
     if with_keys:
