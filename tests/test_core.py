@@ -362,3 +362,29 @@ def test_inbox_parse_without_separators():
             "\nTITLE: Second\n" + "More long enough story text here. " * 4 +
             "\n**TITLE: Third**\n" + "And yet another story text here. " * 4)
     assert [t for t, _ in inbox.parse(text)] == ["First", "Second", "Third"]
+
+
+def test_send_now_and_relative_time(tmp_path, monkeypatch, capsys):
+    from datetime import datetime, timedelta, timezone
+
+    from faceless import telegram
+    from faceless.cli import _in, main
+    from faceless.storage import Store
+
+    assert _in((datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()) == "пора отправлять"
+    assert _in((datetime.now(timezone.utc) + timedelta(hours=3, minutes=20, seconds=30)).isoformat()).startswith("через 3 ч")
+
+    db = tmp_path / "db.sqlite3"
+    video = tmp_path / "v.mp4"
+    video.write_bytes(b"x")
+    store = Store(db)
+    store.add_video(post_id="p", part=1, parts=1, path=video, title="Hook", description="d", tags=[],
+                    publish_at=(datetime.now(timezone.utc) + timedelta(hours=5)).isoformat(timespec="seconds"))
+    cfgfile = tmp_path / "config.toml"
+    cfgfile.write_text(f'[paths]\ndb = "{db}"\n')
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "1:a")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "5")
+    monkeypatch.setattr(telegram, "upload", lambda row, cfg: "777")
+    main(["-c", str(cfgfile), "send"])
+    assert "Отправлено" in capsys.readouterr().out
+    assert Store(db).videos()[0]["telegram_id"] == "777" and Store(db).undelivered() == 0

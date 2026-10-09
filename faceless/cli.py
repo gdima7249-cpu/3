@@ -65,6 +65,17 @@ def _demo_background(path: Path, seconds: int = 30) -> Path:
     return path
 
 
+def _in(iso: str) -> str:
+    """«через 3 ч 20 мин» / «пора отправлять» вместо времени в UTC."""
+    from datetime import datetime, timezone
+
+    left = (datetime.fromisoformat(iso) - datetime.now(timezone.utc)).total_seconds()
+    if left <= 0:
+        return "пора отправлять"
+    h, m = divmod(int(left // 60), 60)
+    return f"через {h} ч {m:02d} мин" if h else f"через {m} мин"
+
+
 def _inbox_waiting(cfg: dict, store: Store) -> list[tuple[str, str]]:
     from . import inbox
 
@@ -116,6 +127,8 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("candidates", help="показать подходящие посты, ничего не рендеря")
     sub.add_parser("telegram-sync", help="забрать из Telegram истории, которые вы прислали своему боту")
     sub.add_parser("queue", help="показать очередь: готовые ролики и истории в inbox, ожидающие своей очереди")
+    sd = sub.add_parser("send", help="отправить готовый ролик в Telegram прямо сейчас, не дожидаясь расписания")
+    sd.add_argument("id", type=int, nargs="?", help="номер ролика из `faceless queue` (без номера: ближайший)")
     cn = sub.add_parser("cancel", help="отменить готовый ролик (и все части его истории): faceless cancel НОМЕР")
     cn.add_argument("id", type=int, help="номер ролика из `faceless queue`")
     cn.add_argument("--only-this", action="store_true", help="отменить только эту часть, а не всю историю")
@@ -181,13 +194,37 @@ def main(argv: list[str] | None = None) -> None:
         print("ГОТОВЫЕ РОЛИКИ (ещё не доставлены):" if rows else "Готовых роликов в очереди нет.")
         for r in rows:
             part = f", часть {r['part']}/{r['parts']}" if r["parts"] > 1 else ""
-            print(f"  №{r['id']:<4} {r['publish_at'][:16].replace('T', ' ')} UTC  {r['title'][:70]}{part}")
+            print(f"  №{r['id']:<4} {_in(r['publish_at']):<16} {r['title'][:60]}{part}")
         waiting = _inbox_waiting(cfg, store)
         print("\nИСТОРИИ В inbox.txt (ещё не использованы):" if waiting else "\nИстории в inbox.txt закончились.")
         for n, (title, _) in enumerate(waiting, 1):
             print(f"  #{n:<3} {title[:80]}")
         if rows or waiting:
-            print("\nОтменить ролик: faceless cancel НОМЕР    Убрать историю: faceless skip НОМЕР")
+            print("\nОтправить ролик сейчас: faceless send НОМЕР (или просто faceless send: ближайший)")
+            print("Отменить ролик: faceless cancel НОМЕР    Убрать историю: faceless skip НОМЕР")
+    elif args.cmd == "send":
+        import os
+
+        from . import telegram
+
+        if not (os.environ.get("TELEGRAM_BOT_TOKEN") and os.environ.get("TELEGRAM_CHAT_ID")):
+            raise SystemExit("Telegram не подключён. Запустите faceless setup, вставьте токен бота и напишите боту /start.")
+        store = Store(cfg["paths"]["db"])
+        rows = store.queue()
+        if args.id is not None:
+            rows = [r for r in rows if r["id"] == args.id]
+        if not rows:
+            raise SystemExit("Такого ролика в очереди нет. Список: faceless queue")
+        row = rows[0]
+        if not Path(row["path"]).exists():
+            raise SystemExit(f"Файл ролика №{row['id']} не найден: {row['path']}")
+        try:
+            msg_id = telegram.upload(row, cfg)
+        except Exception as e:
+            store.set_result(row["id"], "telegram", None, str(e)[:500])
+            raise SystemExit(f"Не получилось отправить: {e}")
+        store.set_result(row["id"], "telegram", msg_id, None)
+        print(f"Отправлено в Telegram: №{row['id']} «{row['title'][:60]}». Проверьте чат с ботом.")
     elif args.cmd == "cancel":
         store = Store(cfg["paths"]["db"])
         done = store.cancel(args.id, whole_story=not args.only_this)
