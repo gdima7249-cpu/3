@@ -28,8 +28,16 @@ def parse(text: str) -> list[tuple[str, str]]:
     разделители)."""
     out = []
     text = _TITLE_LINE.sub(lambda m: "\n---\n" + m.group(0).lstrip(), text)
-    for block in _SEP.split(text):
+    has_titles = bool(_TITLE_LINE.search(text))
+    for n, block in enumerate(_SEP.split(text)):
         lines = [ln.rstrip() for ln in block.strip().splitlines()]
+        if has_titles:  # «Вот ваши ролики:» и прочая болтовня до первого TITLE: не должна стать историей
+            first = next((i for i, ln in enumerate(lines) if _TITLE_LINE.match(ln)), None)
+            if first is None:
+                if n == 0:
+                    continue  # вступительный блок без TITLE
+            else:
+                lines = lines[first:]
         while lines and not lines[0].strip():
             lines.pop(0)
         if len(lines) < 2:
@@ -93,3 +101,13 @@ def clear(path: str | Path) -> int:
     if p.exists():
         p.replace(p.with_name(p.stem + ".old" + p.suffix))
     return n
+
+
+def describe(title: str, body: str) -> str:
+    """Короткая строка для ответа бота: что именно распознано."""
+    from .text import parse_segments
+
+    body, _ = split_visuals(body)
+    segs = parse_segments(body)
+    what = f"{len(segs)} фактов" if segs else f"история, {len(body)} зн."
+    return f"• {title[:60]} — {what}"

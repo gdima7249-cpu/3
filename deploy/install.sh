@@ -111,8 +111,8 @@ cat > /usr/local/bin/faceless.new <<EOF
 if [ "\$(id -u)" -ne 0 ]; then exec sudo "\$0" "\$@"; fi
 if [ "\$1" = "autopilot" ]; then
   case "\$2" in
-    on)  systemctl enable --now faceless-make.timer faceless-publish.timer faceless-telegram.timer && echo "Автопилот включён." ;;
-    off) systemctl disable --now faceless-make.timer faceless-publish.timer faceless-telegram.timer && echo "Автопилот выключен." ;;
+    on)  systemctl enable --now faceless-make.timer faceless-publish.timer faceless-bot.service && echo "Автопилот включён." ;;
+    off) systemctl disable --now faceless-make.timer faceless-publish.timer faceless-bot.service && echo "Автопилот выключен." ;;
     run) systemctl reset-failed faceless-make.service 2>/dev/null
          if systemctl is-active --quiet faceless-make.service; then echo "Сборка уже идёт."
          else systemctl start --no-block faceless-make.service; fi
@@ -120,7 +120,7 @@ if [ "\$1" = "autopilot" ]; then
          echo "Ниже живой ход работы. Выйти из просмотра: Ctrl+C (сборка при этом продолжится)."; echo
          exec journalctl -fu faceless-make -n 0 -o cat ;;
     log) journalctl -u faceless-make -n 60 --no-pager -o cat ;;
-    *)   systemctl list-timers 'faceless-*' --no-pager ;;
+    *)   systemctl is-active faceless-bot.service | sed 's/^/Telegram-бот: /'; systemctl list-timers 'faceless-*' --no-pager ;;
   esac
   exit
 fi
@@ -128,10 +128,15 @@ cd "$APP" || exit 1
 exec runuser -u faceless -- "$APP/.venv/bin/python" -u -m faceless "\$@"
 EOF
 chmod 755 /usr/local/bin/faceless.new && mv -f /usr/local/bin/faceless.new /usr/local/bin/faceless
+# старый опрос раз в 2 минуты заменён службой faceless-bot (иначе они подерутся за сообщения)
+systemctl disable --now faceless-telegram.timer faceless-telegram.service 2>/dev/null || true
+rm -f /etc/systemd/system/faceless-telegram.timer /etc/systemd/system/faceless-telegram.service
 cp "$APP"/deploy/faceless-*.service "$APP"/deploy/faceless-*.timer /etc/systemd/system/
 systemctl daemon-reload 2>/dev/null || true
 # Автопилот включается сразу; пока нет ключей, запуски тихо пропускаются (см. ExecCondition в юнитах)
-systemctl enable --now faceless-make.timer faceless-publish.timer faceless-telegram.timer 2>/dev/null \
+systemctl enable faceless-make.timer faceless-publish.timer faceless-bot.service 2>/dev/null \
+  && systemctl start faceless-make.timer faceless-publish.timer 2>/dev/null \
+  && systemctl restart faceless-bot.service 2>/dev/null \
   || echo "  (systemd недоступен: автозапуск включите вручную, когда сможете)"
 
 say "Готово! Свободно на диске: $(free_mb "$HOME_DIR") МБ"
@@ -143,5 +148,6 @@ cat <<'EOF'
   faceless setup --keys                 ключ Gemini и подключение Telegram/YouTube (один раз)
   faceless autopilot run                собрать ролики прямо сейчас
   faceless status                       что настроено и что в очереди
+  faceless doctor                       самопроверка, если бот молчит
 Автопилот уже включён: как только появится ключ Gemini, ролики будут собираться сами.
 EOF

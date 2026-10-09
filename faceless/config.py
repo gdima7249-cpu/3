@@ -79,8 +79,8 @@ def _merge(base: dict, override: dict) -> dict:
     return out
 
 
-def load_dotenv(path: Path) -> None:
-    """Минимальный .env-парсер: KEY=VALUE, без перезаписи уже заданных переменных."""
+def load_dotenv(path: Path, override: bool = False) -> None:
+    """Минимальный .env-парсер: KEY=VALUE; уже заданные переменные не перезаписываются (если не override)."""
     if not path.exists():
         return
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -90,7 +90,10 @@ def load_dotenv(path: Path) -> None:
         key, value = line.split("=", 1)
         value = value.strip().strip('"').strip("'")
         if value:
-            os.environ.setdefault(key.strip(), value)
+            if override:
+                os.environ[key.strip()] = value
+            else:
+                os.environ.setdefault(key.strip(), value)
 
 
 def load_config(path: str | Path = "config.toml") -> dict:

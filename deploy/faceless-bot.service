@@ -1,0 +1,13 @@
+[Unit]
+Description=faceless: Telegram-бот (мгновенный приём текстов)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/faceless/app
+ExecStart=/opt/faceless/app/.venv/bin/python -u -m faceless bot
+User=faceless
+Restart=always
+RestartSec=10
+Nice=5
+MemoryMax=150M

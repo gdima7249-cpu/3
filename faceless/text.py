@@ -72,21 +72,39 @@ def split_parts(script: Script, max_seconds: float, cps: float = CHARS_PER_SECON
 _NUM = re.compile(r"^\s*(?:[-*•]+|\d+\s*[.)]|fact\s*\d+\s*[:.\-)])\s*", re.I)
 
 
+_BAR = re.compile(r"\s*\|+\s*")
+_TRAIL_VIS = re.compile(r"\s*(?:\[([^\]]{2,60})\]|\(\s*(?:visuals?|keywords?|кадр)\s*[:：]\s*([^)]{2,60})\))\s*$", re.I)
+
+
 def parse_segments(body: str) -> list[tuple[str, str]]:
     """Формат «фактов»: по одному факту в строке, после « | » ключевые слова кадра.
 
-    Возвращает [(текст, кадр), ...] или [], если это обычная история (нужно >= 3 строк с « | »)."""
-    segs = []
+    Терпимо к мелочам: «||», «[keywords]» или «(visual: …)» в конце вместо «|», нумерация, лишние строки-болтовня
+    в начале и конце ответа ИИ. Возвращает [(текст, кадр), ...] или [], если это обычная история
+    (нужно хотя бы 3 строки с кадром или большинство строк с кадром)."""
+    segs: list[tuple[str, str]] = []
     for line in body.splitlines():
         line = line.strip()
         if not line:
             continue
-        text, sep, vis = line.partition("|")
+        text, vis = line, ""
+        if "|" in line:
+            parts = _BAR.split(line, maxsplit=1)
+            text, vis = parts[0], parts[1] if len(parts) > 1 else ""
+        else:
+            m = _TRAIL_VIS.search(line)
+            if m:
+                text, vis = line[:m.start()], m.group(1) or m.group(2)
         text = _NUM.sub("", text).strip()
-        vis = vis.strip().strip("[]()*\"' .") if sep else ""
+        vis = vis.strip().strip("[]()*\"' .") if vis else ""
         if text:
             segs.append((text, vis))
-    return segs if sum(1 for _, v in segs if v) >= 3 else []
+    while segs and not segs[0][1]:  # болтовня до первого факта («Here are your facts:»)
+        segs.pop(0)
+    while segs and not segs[-1][1]:  # и после последнего («Let me know if…»)
+        segs.pop()
+    with_vis = sum(1 for _, v in segs if v)
+    return segs if with_vis >= 3 or (with_vis >= 2 and with_vis * 10 >= len(segs) * 6) else []
 
 
 def narration(segments: list[tuple[str, str]]) -> str:

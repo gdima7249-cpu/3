@@ -549,3 +549,60 @@ def test_cancel_all(tmp_path, capsys):
     assert Store(db).undelivered() == 0 and files[0].exists() and not files[1].exists() and not files[2].exists()
     assert Store(db).videos()[-1]["telegram_id"] == "55"   # доставленный остался как был
     assert not inb.exists()
+
+
+def test_tolerant_parsing_and_bot_reply(tmp_path, monkeypatch):
+    from faceless import inbox, telegram
+    from faceless.config import DEFAULTS, _merge
+    from faceless.text import parse_segments
+
+    facts = ("Here are your facts:\n"
+             "Honey never spoils and was found edible in old tombs. || ancient honey\n"
+             "Octopuses have three hearts that pump blue blood [octopus swimming]\n"
+             "Bananas are berries, but strawberries are not. (visual: banana bunch)\n"
+             "Which one surprised you most? | amazed face\n"
+             "Let me know if you want more!")
+    segs = parse_segments(facts)
+    assert [v for _, v in segs] == ["ancient honey", "octopus swimming", "banana bunch", "amazed face"]
+    assert segs[0][0].startswith("Honey") and not any("Let me know" in t or "Here are" in t for t, _ in segs)
+
+    text = "Sure! Here are 2 videos:\nTITLE: One\n" + facts + "\nTITLE: Two\n" + facts
+    parsed = inbox.parse(text)
+    assert [t for t, _ in parsed] == ["One", "Two"] and "Sure" not in parsed[0][1]
+
+    cfg = _merge(DEFAULTS, {"paths": {"db": str(tmp_path / "db.sqlite3"), "inbox": str(tmp_path / "inbox.txt")}})
+    sent = []
+    monkeypatch.setattr(telegram, "_call", lambda m, token=None, **kw: sent.append(kw["data"]["text"]) or {})
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "1:a")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "5")
+    n = telegram.process_updates(cfg, [{"update_id": 3, "message": {"chat": {"id": 5}, "text": text}},
+                                       {"update_id": 4, "message": {"chat": {"id": 5}, "text": "hello?"}}], "1:a", "5")
+    assert n == 2
+    assert any("• One — 4 фактов" in m for m in sent)
+    sent.clear()
+    assert telegram.process_updates(cfg, [{"update_id": 5, "message": {"chat": {"id": 5}, "text": "hello?"}}], "1:a", "5") == 0
+    assert len(sent) == 1 and "Не нашёл" in sent[0]
+
+
+def test_doctor_runs_and_reports(tmp_path, monkeypatch, capsys):
+    from faceless import doctor, telegram
+    from faceless.config import DEFAULTS, _merge
+
+    cfg = _merge(DEFAULTS, {"paths": {"db": str(tmp_path / "db.sqlite3"), "inbox": str(tmp_path / "inbox.txt")}})
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "1:a")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "5")
+    monkeypatch.setattr(doctor, "_systemctl", lambda *a: "inactive")
+
+    def fake(method, token=None, **kw):
+        if method == "getUpdates":
+            raise RuntimeError("Telegram getUpdates: Conflict: terminated by other getUpdates request")
+        if method == "getWebhookInfo":
+            return {"url": "https://x"}
+        if method == "getMe":
+            return {"username": "mybot"}
+        return {}
+
+    monkeypatch.setattr(telegram, "_call", fake)
+    assert doctor.run(cfg) >= 3
+    out = capsys.readouterr().out
+    assert "webhook" in out and "другая программа" in out and "faceless-bot не запущен" in out

@@ -131,6 +131,9 @@ def main(argv: list[str] | None = None) -> None:
     ff.add_argument("path")
 
     sub.add_parser("candidates", help="показать подходящие посты, ничего не рендеря")
+    sub.add_parser("bot", help="служба: мгновенно принимает тексты из Telegram (запускается сама, вручную не нужно)")
+    dc = sub.add_parser("doctor", help="самопроверка: почему бот не отвечает или не присылает ролики")
+    dc.add_argument("--fix", action="store_true", help="исправить то, что можно (например, снять webhook)")
     sub.add_parser("telegram-sync", help="забрать из Telegram истории, которые вы прислали своему боту")
     sub.add_parser("queue", help="показать очередь: готовые ролики и истории в inbox, ожидающие своей очереди")
     sd = sub.add_parser("send", help="отправить готовый ролик в Telegram прямо сейчас, не дожидаясь расписания")
@@ -187,6 +190,14 @@ def main(argv: list[str] | None = None) -> None:
                    "добавляйте истории вручную командой faceless inbox.")
             telegram.notify("⚠️ faceless: " + msg)
             raise SystemExit(msg)
+    elif args.cmd == "bot":
+        from . import telegram
+
+        telegram.run_bot(args.config)
+    elif args.cmd == "doctor":
+        from . import doctor
+
+        raise SystemExit(1 if doctor.run(cfg, args.fix) else 0)
     elif args.cmd == "telegram-sync":
         from . import telegram
 
@@ -196,7 +207,8 @@ def main(argv: list[str] | None = None) -> None:
             raise SystemExit("Telegram не подключён: нет токена бота или номера чата. Запустите faceless setup, "
                              "вставьте токен бота и напишите боту /start.")
         n = telegram.sync_inbox(cfg)
-        print(f"Добавлено историй из Telegram: {n}. (Ответ бота придёт вам в Telegram.)")
+        print(f"Добавлено роликов из Telegram: {n}. (Ответ бота придёт вам в Telegram.) "
+              "Если работает служба faceless-bot, она делает это сама.")
     elif args.cmd == "queue":
         store = Store(cfg["paths"]["db"])
         rows = store.queue()

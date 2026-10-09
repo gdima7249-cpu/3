@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 
 import requests
@@ -97,6 +98,10 @@ def _offset_file(cfg: dict) -> Path:
     return Path(cfg["paths"]["db"]).with_name("tg_offset.txt")
 
 
+def _alive_file(cfg: dict) -> Path:
+    return Path(cfg["paths"]["db"]).with_name("bot_alive.json")
+
+
 def _download_text(file_id: str, token: str) -> str:
     info = _call("getFile", token, data={"file_id": file_id})
     if info.get("file_size", 0) > 1_000_000:
@@ -106,21 +111,53 @@ def _download_text(file_id: str, token: str) -> str:
     return r.content.decode("utf-8", errors="replace")
 
 
-def sync_inbox(cfg: dict) -> int:
-    """Забирает новые сообщения владельца; возвращает, сколько историй добавлено. Чужих игнорирует."""
+HELP = ("Пришлите тексты роликов (сообщением или файлом .txt) — я сразу добавлю их в очередь.\n"
+        "Формат: «TITLE: заголовок», затем 5 строк «факт | кадр на английском» (или текст истории). "
+        "Несколько роликов подряд можно слать одним сообщением, делить их строкой --- не обязательно.\n\n"
+        "/queue — что в очереди\n/status — всё ли в порядке\n/clear — очистить очередь текстов\n"
+        "/cancelall — отменить все готовые ролики")
+
+
+def _heartbeat(cfg: dict, error: str = "") -> None:
+    try:
+        f = _alive_file(cfg)
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps({"ts": time.time(), "error": error[:300]}))
+    except OSError:
+        pass
+
+
+def _handle_text(cfg: dict, text: str, notes: list[str], texts: list[str]) -> None:
+    from . import inbox
+
+    if not text.startswith("/"):
+        texts.append(text)
+        return
+    cmd = text.split()[0].split("@")[0].lower()
+    if cmd == "/cancelall":
+        from .storage import Store
+
+        rows = Store(cfg["paths"]["db"]).cancel_all()
+        for r in rows:
+            Path(r["path"]).unlink(missing_ok=True)
+        notes.append(f"Отменено готовых роликов: {len(rows)}.")
+    elif cmd == "/clear":
+        notes.append(f"Очередь текстов очищена (было {inbox.clear(cfg['paths']['inbox'])}).")
+    elif cmd == "/queue":
+        notes.append(_queue_report(cfg))
+    elif cmd == "/status":
+        notes.append(_status_report(cfg))
+    else:
+        notes.append(HELP)
+
+
+def process_updates(cfg: dict, updates: list[dict], token: str, owner: str) -> int:
+    """Обрабатывает пачку сообщений: тексты → inbox, команды выполняет; отвечает владельцу. Возвращает число новых роликов."""
     from . import inbox, pipeline
 
-    token, owner = os.environ.get("TELEGRAM_BOT_TOKEN"), str(os.environ.get("TELEGRAM_CHAT_ID", ""))
-    if not (token and owner):
-        return 0
     off_file = _offset_file(cfg)
-    offset = int(off_file.read_text()) + 1 if off_file.exists() else None
-    params = {"timeout": 0, "allowed_updates": json.dumps(["message"])}
-    if offset:
-        params["offset"] = offset
-    updates = _call("getUpdates", token, data=params)
-    if not updates:
-        return 0
+    off_file.parent.mkdir(parents=True, exist_ok=True)
+    off_file.write_text(str(updates[-1]["update_id"]))  # сразу: сбой в разборе не должен зациклить обработку
 
     texts: list[str] = []
     notes: list[str] = []
@@ -136,46 +173,94 @@ def sync_inbox(cfg: dict) -> int:
             except Exception as e:
                 notes.append(f"Не смог прочитать файл {doc.get('file_name')}: {e}")
                 continue
-        if text.startswith("/"):
-            cmd = text.split()[0].split("@")[0].lower()
-            if cmd == "/cancelall":
-                from .storage import Store
-
-                store = Store(cfg["paths"]["db"])
-                rows = store.cancel_all()
-                for r in rows:
-                    Path(r["path"]).unlink(missing_ok=True)
-                notes.append(f"Отменено готовых роликов: {len(rows)}.")
-            elif cmd == "/clear":
-                notes.append(f"Очередь историй очищена (было {inbox.clear(cfg['paths']['inbox'])}).")
-            elif cmd == "/queue":
-                notes.append(_queue_report(cfg))
-            else:
-                notes.append("Просто пришлите тексты роликов или файл .txt. Формат: первая строка «TITLE: заголовок», затем "
-                             "либо текст истории, либо 5 строк вида «факт | кадр»; ролики разделяйте строкой из трёх "
-                             "дефисов (---). /queue — что в очереди, /clear — очистить очередь текстов, /cancelall — отменить все готовые ролики.")
+        elif doc:
+            notes.append("Файл не .txt — пришлите текст сообщением или файлом .txt.")
             continue
-        texts.append(text)
-    off_file.parent.mkdir(parents=True, exist_ok=True)
-    off_file.write_text(str(updates[-1]["update_id"]))
+        elif not text:
+            notes.append("Это не текст. Пришлите текст ролика сообщением или файлом .txt (/help — формат).")
+            continue
+        try:
+            _handle_text(cfg, text.strip(), notes, texts)
+        except Exception as e:
+            notes.append(f"Команда не выполнилась: {e}")
 
     added = 0
     if texts:
         text_all = build_text(texts)
-        total = len(inbox.unique(inbox.parse(text_all)))
+        found = inbox.unique(inbox.parse(text_all))
         added = inbox.append(cfg["paths"]["inbox"], text_all)
         if added:
-            left = pipeline.inbox_left(cfg)
-            dup = f" Повторов пропущено: {total - added}." if total > added else ""
-            notes.append(f"✅ Добавлено новых: {added}.{dup} В очереди ждут: {left}.")
-        elif total:
-            notes.append(f"Все {total} уже были в очереди, ничего не добавлено.")
+            dup = f" Повторов пропущено: {len(found) - added}." if len(found) > added else ""
+            lines = "\n".join(inbox.describe(t, b) for t, b in found[:12])
+            more = f"\n…и ещё {len(found) - 12}" if len(found) > 12 else ""
+            notes.append(f"✅ Добавлено новых: {added}.{dup} В очереди ждут: {pipeline.inbox_left(cfg)}.\n{lines}{more}\n"
+                         "Собираются ролики в фоне, готовое пришлю сюда.")
+        elif found:
+            notes.append(f"Все {len(found)} уже были в очереди, ничего не добавлено.")
         else:
-            notes.append("Не нашёл ни одного ролика. Нужен формат: первая строка «TITLE: заголовок», дальше текст "
-                         "(не короче ~80 символов) или строки «факт | кадр»; ролики разделяйте строкой ---.")
+            notes.append("Не нашёл ни одного ролика. Нужен формат: первая строка «TITLE: заголовок», дальше "
+                         "5 строк «факт | кадр» или текст истории (от ~80 символов). Строка --- между роликами "
+                         "желательна, но не обязательна.")
     for n in notes:
         notify(n)
     return added
+
+
+def sync_inbox(cfg: dict, timeout: int = 0) -> int:
+    """Забирает новые сообщения владельца (timeout > 0 — ждёт их, ответ мгновенный); возвращает, сколько роликов добавлено."""
+    token, owner = os.environ.get("TELEGRAM_BOT_TOKEN"), str(os.environ.get("TELEGRAM_CHAT_ID", ""))
+    if not (token and owner):
+        return 0
+    off_file = _offset_file(cfg)
+    offset = int(off_file.read_text()) + 1 if off_file.exists() else None
+    params = {"timeout": timeout, "allowed_updates": json.dumps(["message"])}
+    if offset:
+        params["offset"] = offset
+    updates = _call("getUpdates", token, data=params)
+    return process_updates(cfg, updates, token, owner) if updates else 0
+
+
+def run_bot(config_path: str = "config.toml") -> None:
+    """Бесконечный цикл: ждёт сообщений владельца и отвечает сразу. Работает как служба faceless-bot."""
+    import logging
+
+    from .config import load_config, load_dotenv
+
+    log = logging.getLogger("faceless")
+    delay = 5
+    while True:
+        load_dotenv(Path(config_path).parent / ".env", override=True)  # токен могли вписать, пока служба работает
+        cfg = load_config(config_path)
+        if not (os.environ.get("TELEGRAM_BOT_TOKEN") and os.environ.get("TELEGRAM_CHAT_ID")):
+            _heartbeat(cfg, "не задан токен бота или номер чата (faceless setup)")
+            time.sleep(30)
+            continue
+        try:
+            _heartbeat(cfg)
+            sync_inbox(cfg, timeout=50)
+            delay = 5
+        except Exception as e:
+            msg = str(e)
+            if "Conflict" in msg:
+                msg = ("этим же токеном бота уже пользуется другая программа (ваш старый бот?): Telegram позволяет "
+                       "только одной. Создайте для faceless отдельного бота у @BotFather. " + msg)
+            log.warning("bot: %s", msg)
+            _heartbeat(cfg, msg)
+            time.sleep(delay)
+            delay = min(delay * 2, 120)
+
+
+def _status_report(cfg: dict) -> str:
+    from . import adapt, pipeline
+    from .storage import Store
+
+    store = Store(cfg["paths"]["db"])
+    ai = "подключён" if adapt.llm_provider(cfg) else "нет (тексты берутся из очереди)"
+    return ("Бот работает ✔\n"
+            f"Готовых роликов: {len(store.queue())}\n"
+            f"Текстов ждут: {pipeline.inbox_left(cfg)}\n"
+            f"ИИ для текстов: {ai}\n"
+            "Подробная проверка: faceless doctor")
 
 
 def _queue_report(cfg: dict) -> str:
@@ -184,4 +269,4 @@ def _queue_report(cfg: dict) -> str:
 
     store = Store(cfg["paths"]["db"])
     return (f"Готовых роликов в очереди: {len(store.queue())}\n"
-            f"Историй ждут своей очереди: {pipeline.inbox_left(cfg)}")
+            f"Текстов ждут своей очереди: {pipeline.inbox_left(cfg)}")
