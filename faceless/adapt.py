@@ -219,21 +219,48 @@ Do NOT reuse the plot of any of these recent stories:
 {recent}"""
 
 
+FACTS_PROMPT = """You write scripts for "Did you know?" vertical short videos (YouTube Shorts / TikTok).
+Write every field in this language: {language}.
+One video is about ONE topic: {topic}.
+
+- title: the hook, at most 80 characters, like "5 ocean facts that sound fake" (the number must match the number of facts).
+- body: exactly {n} facts, ONE per line, no numbering and no bullets. Each line: one or two short spoken sentences
+  (110 to 170 characters) with a concrete number or detail, then " | " and 1-2 ENGLISH keywords for a stock video clip
+  that illustrates THAT fact (e.g. "deep sea", "northern lights"). Only well-established, verifiable facts; if you are
+  not sure a number is right, leave the number out; avoid absolute claims ("only", "first", "biggest", "never")
+  unless they are certain and commonly documented. No medical, legal or financial advice. The last line MUST end
+  with a question mark (a question to the viewer). Do not start lines with "Did you know".
+- description: 1-2 sentences plus 3-5 hashtags.
+- tags: 5-10 tags without "#".
+- visuals: 4 to 6 short ENGLISH keywords for the topic as a whole.
+- quality: 1-10, honest self-assessment of how well this holds a viewer.
+Do NOT repeat the facts or topic of these recent videos:
+{recent}"""
+
+
 def generate_story(cfg: dict, recent_titles: list[str], rng) -> Script:
-    themes = cfg["stories"]["themes"]
-    theme = rng.choice(themes)
-    system = GENERATE_PROMPT.format(language=cfg["text"]["language"], max_chars=cfg["stories"]["max_chars"],
-                                    recent="\n".join(f"- {t}" for t in recent_titles[:40]) or "(none yet)")
-    user = f"Theme: {theme}. Make it surprising and specific (concrete names of places, objects, numbers)."
+    """Придумывает ролик: «факты» (по умолчанию) или оригинальную вымышленную историю (content.format)."""
+    facts = cfg.get("content", {}).get("format", "stories") == "facts"
+    recent = "\n".join(f"- {t}" for t in recent_titles[:40]) or "(none yet)"
+    if facts:
+        topic = rng.choice(cfg["content"]["topics"])
+        system = FACTS_PROMPT.format(language=cfg["text"]["language"], topic=topic, recent=recent,
+                                     n=cfg["content"].get("facts_per_video", 5))
+        user = f"Topic: {topic}. Pick a fresh angle, with surprising, specific facts."
+    else:
+        theme = rng.choice(cfg["stories"]["themes"])
+        system = GENERATE_PROMPT.format(language=cfg["text"]["language"], max_chars=cfg["stories"]["max_chars"],
+                                        recent=recent)
+        user = f"Theme: {theme}. Make it surprising and specific (concrete names of places, objects, numbers)."
     provider = llm_provider(cfg)
     if provider == "claude":
-        data = _claude_json(cfg, system, user, "генерация истории")
+        data = _claude_json(cfg, system, user, "генерация ролика")
     elif provider == "gemini":
-        data = _gemini_json(cfg, system, user, "генерация истории", temperature=1.0)
+        data = _gemini_json(cfg, system, user, "генерация ролика", temperature=1.0)
     else:
-        raise RuntimeError("Для придуманных историй нужен ключ Gemini или Claude (faceless setup --keys)")
+        raise RuntimeError("Для придуманных роликов нужен ключ Gemini или Claude (faceless setup --keys)")
     script = _to_script(data)
-    script.tags = list(dict.fromkeys(script.tags + ["storytime", "fiction"]))
+    script.tags = list(dict.fromkeys(script.tags + (["facts", "didyouknow"] if facts else ["storytime", "fiction"])))
     return script
 
 

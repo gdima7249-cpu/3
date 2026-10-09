@@ -428,3 +428,37 @@ def test_broll_build_for_with_fake_pexels(tmp_path, monkeypatch):
     out = broll.build_for(["coffee", "office"], 12.0, tmp_path, cfg, random.Random(1))
     assert media.duration(out) >= 14.0                      # длительность + запас
     assert (tmp_path / "assets" / "broll_cache").exists()
+
+
+def test_facts_parse_finalize_and_timing(tmp_path):
+    import random
+
+    from faceless import pipeline, subtitles, tts
+    from faceless.config import DEFAULTS, _merge
+    from faceless.models import Script, Word
+    from faceless.text import narration, parse_segments
+
+    body = ("1. Honey never spoils; edible honey was found in ancient Egyptian tombs. | ancient honey jar\n"
+            "Fact 2: Bananas curve because they grow upwards against gravity. | banana tree\n"
+            "- Nutmeg is a hallucinogen in large doses because of myristicin. | nutmeg\n"
+            "Which of these surprised you the most? | amazed face")
+    segs = parse_segments(body)
+    assert [v for _, v in segs] == ["ancient honey jar", "banana tree", "nutmeg", "amazed face"]
+    assert segs[0][0].startswith("Honey never spoils") and segs[1][0].startswith("Bananas")
+    assert parse_segments("A normal story without pipes.\nSecond line of the story.") == []
+    assert narration([("No end", "x"), ("Ends here.", "y")]) == "No end. Ends here."
+
+    sc = pipeline.finalize(Script(title="T", body=body, description="T #storytime #story", tags=["storytime", "fiction", "x"]))
+    assert sc.kind == "facts" and len(sc.segments) == 4 and "|" not in sc.body
+    assert sc.tags[:3] == ["facts", "didyouknow", "funfacts"] and "fiction" not in sc.tags
+    assert "#facts" in sc.description
+
+    cfg = _merge(DEFAULTS, {"tts": {"engine": "silent"}})
+    sp = tts.synthesize("Title here", sc.body, tmp_path, cfg, random.Random(1), pieces=[t for t, _ in sc.segments])
+    assert len(sp.pieces) == 4 and all(a < b for a, b in sp.pieces)
+    assert all(sp.pieces[i][1] < sp.pieces[i + 1][0] for i in range(3))   # факты идут подряд с паузами
+    assert sp.pieces[0][0] > sp.title_end and sp.duration >= sp.pieces[-1][1]
+
+    ass = subtitles.build_ass([Word("hi", 1, 1.2)], start_at=0.5, end_at=3, width=720, height=1280, font="Inter",
+                              font_size=61, highlight="&H0000F0FF", badges=[(1.0, 2.5, "FACT 2")])
+    assert "FACT 2" in ass and "\\an8" in ass

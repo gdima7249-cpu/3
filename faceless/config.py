@@ -36,13 +36,20 @@ DEFAULTS: dict = {
     "youtube": {
         "enabled": True, "client_secrets": "secrets/client_secret.json",
         "token": "secrets/youtube_token.json", "category_id": "24",
-        "default_tags": ["reddit", "reddit stories", "askreddit", "shorts"], "contains_synthetic_media": True,
+        "default_tags": ["shorts"], "contains_synthetic_media": True,
     },
     "tiktok": {"enabled": False, "privacy_level": "SELF_ONLY"},
     "telegram": {"enabled": False},
     # Видеофон по теме истории (Pexels): кадры меняются каждые ~5 секунд. Нужен бесплатный ключ PEXELS_API_KEY
     "broll": {"enabled": True, "scene_seconds": 5.5, "dim": 0.14, "cache_mb": 150},
     "autopilot": {"queue_target": 6},  # сколько готовых, но ещё не доставленных роликов держать в запасе
+    # Что делаем: "facts" («Вы знали, что…», по одному кадру на факт) или "stories" (вымышленные истории от первого лица)
+    "content": {
+        "format": "facts", "facts_per_video": 5,
+        "topics": ["space", "the ocean", "the human body", "animals", "ancient history", "weird science", "geography",
+                   "food", "technology", "the human brain", "weather and nature", "famous inventions", "the deep sea",
+                   "insects", "the Roman Empire", "volcanoes and earthquakes", "sleep and dreams", "the Moon and planets"],
+    },
     "stories": {
         # auto: Reddit, только если есть ключи Reddit; иначе ИИ придумывает истории. reddit | generate — принудительно
         "source": "auto",

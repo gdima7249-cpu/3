@@ -56,7 +56,7 @@ enabled = true
 client_secrets = "secrets/client_secret.json"
 token = "secrets/youtube_token.json"
 category_id = "24"                  # Entertainment
-default_tags = ["reddit", "reddit stories", "askreddit", "shorts"]
+default_tags = ["shorts"]
 contains_synthetic_media = true     # честная пометка синтетического голоса (требование YouTube)
 
 [telegram]
@@ -65,6 +65,11 @@ enabled = false         # true — бот присылает готовый ро
 [tiktok]
 enabled = false
 privacy_level = "SELF_ONLY"         # неаудированные приложения могут постить только SELF_ONLY
+
+[content]
+format = "facts"        # facts — «Вы знали, что…» (по умолчанию) | stories — вымышленные истории от первого лица
+facts_per_video = 5     # сколько фактов в одном ролике
+# topics = ["space", "the ocean", ...]   # темы для режима «ИИ придумывает сам»; список по умолчанию см. faceless/config.py
 
 [broll]
 enabled = true          # видео по теме истории с Pexels (нужен бесплатный ключ PEXELS_API_KEY), иначе обычный фон

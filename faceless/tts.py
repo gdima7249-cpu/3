@@ -11,7 +11,7 @@ import base64
 import os
 import random
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import requests
@@ -30,6 +30,7 @@ class Speech:
     words: list[Word]
     title_end: float  # когда закончился заголовок — до этого момента висит карточка
     duration: float
+    pieces: list[tuple[float, float]] = field(default_factory=list)  # время начала и конца каждого факта
 
 
 def _edge(text: str, out: Path, voice: str, rate: str) -> list[Word]:
@@ -97,7 +98,8 @@ def _silent(text: str, out: Path) -> list[Word]:
     return words
 
 
-def synthesize(title: str, body: str, workdir: Path, cfg: dict, rng: random.Random) -> Speech:
+def synthesize(title: str, body: str, workdir: Path, cfg: dict, rng: random.Random,
+               pieces: list[str] | None = None) -> Speech:
     """Озвучивает заголовок и тело отдельно (чтобы точно знать, где кончился заголовок) и склеивает."""
     tc = cfg["tts"]
     engine = tc["engine"]
@@ -131,11 +133,22 @@ def synthesize(title: str, body: str, workdir: Path, cfg: dict, rng: random.Rand
         return path, words
 
     title_audio, title_words = say(title, "title")
-    body_audio, body_words = say(body, "body")
     gap = media.silence(workdir / "gap.mp3", 0.35)
+    gap2 = media.silence(workdir / "gap2.mp3", 0.3)
 
     title_end = media.duration(title_audio)
-    offset = title_end + 0.35
-    words = title_words + [Word(w.text, w.start + offset, w.end + offset) for w in body_words]
-    audio = media.concat_audio([title_audio, gap, body_audio], workdir / "voice.wav")
-    return Speech(audio=audio, words=words, title_end=title_end, duration=media.duration(audio))
+    items = pieces if pieces else [body]  # факты озвучиваются по одному: так известно точное время каждого
+    audios, words, times = [title_audio, gap], list(title_words), []
+    t = title_end + 0.35
+    for i, text in enumerate(items):
+        audio_i, words_i = say(text, f"body{i}")
+        d = media.duration(audio_i)
+        words += [Word(w.text, w.start + t, w.end + t) for w in words_i]
+        times.append((t, t + d))
+        audios.append(audio_i)
+        t += d
+        if i < len(items) - 1:
+            audios.append(gap2)
+            t += 0.3
+    audio = media.concat_audio(audios, workdir / "voice.wav")
+    return Speech(audio=audio, words=words, title_end=title_end, duration=media.duration(audio), pieces=times)

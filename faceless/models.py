@@ -27,6 +27,8 @@ class Script:
     tags: list[str] = field(default_factory=list)
     quality: int = 10     # оценка «смотрибельности» от адаптера
     visuals: list[str] = field(default_factory=list)  # ключевые слова для видеофона (англ.)
+    segments: list[tuple[str, str]] = field(default_factory=list)  # «факты»: (текст, ключевые слова кадра)
+    kind: str = "story"  # story | facts
 
 
 @dataclass

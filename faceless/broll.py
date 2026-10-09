@@ -90,18 +90,18 @@ def prune_cache(cache: Path, max_mb: int) -> None:
         victim.unlink(missing_ok=True)
 
 
-def build_background(clips: list[Path], duration: float, out: Path, w: int, h: int, fps: int,
-                     seg: float, rng: random.Random) -> Path:
-    """Нарезает клипы на куски по ~seg секунд одного формата и склеивает без перекодирования."""
+def build_background(scenes: list[tuple[Path, float]], duration: float, out: Path, w: int, h: int, fps: int,
+                     rng: random.Random) -> Path:
+    """Режет каждый клип на кусок нужной длины одного формата и склеивает без перекодирования."""
     work = out.parent / "broll_seg"
     work.mkdir(parents=True, exist_ok=True)
     segs: list[tuple[Path, float]] = []
-    for i, clip in enumerate(clips):
-        length = media.duration(clip)
-        start = rng.uniform(0, max(0.0, length - seg - 0.3)) if length > seg + 1 else 0.0
+    for i, (clip, length) in enumerate(scenes):
+        src = media.duration(clip)
+        start = rng.uniform(0, max(0.0, src - length - 0.3)) if src > length + 1 else 0.0
         part = work / f"s{i:02d}.mp4"
-        media.run(["ffmpeg", "-y", "-ss", f"{start:.2f}", "-i", str(clip), "-t", f"{seg:.2f}", "-an",
-                   "-vf", f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1,fps={fps}",
+        media.run(["ffmpeg", "-y", "-ss", f"{start:.2f}", "-stream_loop", "-1", "-i", str(clip), "-t", f"{length:.2f}",
+                   "-an", "-vf", f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1,fps={fps}",
                    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22", "-pix_fmt", "yuv420p", "-threads", "1",
                    str(part)])
         segs.append((part, media.duration(part)))
@@ -121,16 +121,25 @@ def build_background(clips: list[Path], duration: float, out: Path, w: int, h: i
     return out
 
 
-def build_for(visuals: list[str], duration: float, workdir: Path, cfg: dict, rng: random.Random) -> Path:
-    """Собирает фон нужной длины из клипов по теме. Бросает исключение, если ничего не нашлось."""
+def build_for(visuals: list[str], duration: float, workdir: Path, cfg: dict, rng: random.Random,
+              windows: list[tuple[float, str]] | None = None) -> Path:
+    """Собирает фон нужной длины из клипов по теме. Бросает исключение, если ничего не нашлось.
+
+    windows — [(длина, запрос), ...]: кадры под конкретные куски озвучки (по одному запросу на каждый факт)."""
     key, bc, vc = os.environ["PEXELS_API_KEY"], cfg["broll"], cfg["video"]
     cache = Path(cfg["paths"]["backgrounds_dir"]).parent / "broll_cache"
     seg = float(bc["scene_seconds"])
-    n = max(2, math.ceil((duration + 2.5) / seg))
+    specs: list[tuple[str, float]] = []  # (запрос, длина кадра)
+    if windows:
+        for length, query in windows:
+            k = max(1, round(length / seg))
+            specs += [(query or (visuals[0] if visuals else rng.choice(GENERIC)), length / k)] * k
+    else:
+        for i in range(max(2, math.ceil((duration + 2.5) / seg))):
+            specs.append((visuals[i % len(visuals)] if visuals and rng.random() < 0.7 else rng.choice(GENERIC), seg))
     used: set[int] = set()
-    clips: list[Path] = []
-    for i in range(n):
-        query = visuals[i % len(visuals)] if visuals and rng.random() < 0.7 else rng.choice(GENERIC)
+    scenes: list[tuple[Path, float]] = []
+    for query, length in specs:
         for attempt in (query, rng.choice(GENERIC)):  # не нашли по теме — берём красивый общий план
             try:
                 clip = _get_clip(attempt, key, cache, rng, used)
@@ -138,11 +147,11 @@ def build_for(visuals: list[str], duration: float, workdir: Path, cfg: dict, rng
                 log.warning("Pexels «%s»: %s", attempt, e)
                 clip = None
             if clip:
-                clips.append(clip)
+                scenes.append((clip, length))
                 break
-    if not clips:
+    if not scenes:
         raise RuntimeError("не удалось получить ни одного видеоклипа")
     out = workdir / "broll_bg.mp4"
-    build_background(clips, duration, out, vc["width"], vc["height"], vc["fps"], seg, rng)
+    build_background(scenes, duration, out, vc["width"], vc["height"], vc["fps"], rng)
     prune_cache(cache, int(bc["cache_mb"]))
     return out
