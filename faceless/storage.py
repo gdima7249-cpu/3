@@ -90,6 +90,14 @@ class Store:
         self.db.commit()
         return rows
 
+    def cancel_all(self) -> list:
+        """Отменяет все готовые, но ещё не доставленные ролики; возвращает отменённые строки."""
+        rows = self.queue()
+        self.db.execute("UPDATE videos SET cancelled=1 WHERE youtube_id IS NULL AND tiktok_id IS NULL "
+                        "AND telegram_id IS NULL AND cancelled = 0")
+        self.db.commit()
+        return rows
+
     def taken_slots(self) -> set[str]:
         return {r[0] for r in self.db.execute("SELECT publish_at FROM videos WHERE publish_at IS NOT NULL")}
 

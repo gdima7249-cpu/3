@@ -135,8 +135,9 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("queue", help="показать очередь: готовые ролики и истории в inbox, ожидающие своей очереди")
     sd = sub.add_parser("send", help="отправить готовый ролик в Telegram прямо сейчас, не дожидаясь расписания")
     sd.add_argument("id", type=int, nargs="?", help="номер ролика из `faceless queue` (без номера: ближайший)")
-    cn = sub.add_parser("cancel", help="отменить готовый ролик (и все части его истории): faceless cancel НОМЕР")
-    cn.add_argument("id", type=int, help="номер ролика из `faceless queue`")
+    cn = sub.add_parser("cancel", help="отменить готовый ролик (faceless cancel НОМЕР) или все сразу (faceless cancel all)")
+    cn.add_argument("id", help="номер ролика из `faceless queue` или слово all (отменить все готовые ролики)")
+    cn.add_argument("--texts", action="store_true", help="с all: заодно очистить очередь текстов (inbox)")
     cn.add_argument("--only-this", action="store_true", help="отменить только эту часть, а не всю историю")
     sk = sub.add_parser("skip", help="выкинуть историю из inbox, пока она не использована: faceless skip НОМЕР")
     sk.add_argument("number", type=int, help="номер истории из `faceless queue`")
@@ -235,7 +236,20 @@ def main(argv: list[str] | None = None) -> None:
         print(f"Отправлено в Telegram: №{row['id']} «{row['title'][:60]}». Проверьте чат с ботом.")
     elif args.cmd == "cancel":
         store = Store(cfg["paths"]["db"])
-        done = store.cancel(args.id, whole_story=not args.only_this)
+        if args.id.lower() in ("all", "все", "всё"):
+            rows = store.cancel_all()
+            for r in rows:
+                Path(r["path"]).unlink(missing_ok=True)
+            msg = f"Отменено готовых роликов: {len(rows)}. Файлы удалены, ничего из этого не будет отправлено."
+            if args.texts:
+                from . import inbox
+
+                msg += f" Очередь текстов очищена (было {inbox.clear(cfg['paths']['inbox'])}, копия: inbox.old.txt)."
+            print(msg)
+            return
+        if not args.id.isdigit():
+            raise SystemExit("Укажите номер ролика (faceless queue) или слово all: faceless cancel all")
+        done = store.cancel(int(args.id), whole_story=not args.only_this)
         if not done:
             raise SystemExit("Такого ролика нет в очереди (возможно, он уже доставлен или отменён). Список: faceless queue")
         for r in done:

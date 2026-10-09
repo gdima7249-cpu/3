@@ -138,14 +138,22 @@ def sync_inbox(cfg: dict) -> int:
                 continue
         if text.startswith("/"):
             cmd = text.split()[0].split("@")[0].lower()
-            if cmd == "/clear":
+            if cmd == "/cancelall":
+                from .storage import Store
+
+                store = Store(cfg["paths"]["db"])
+                rows = store.cancel_all()
+                for r in rows:
+                    Path(r["path"]).unlink(missing_ok=True)
+                notes.append(f"Отменено готовых роликов: {len(rows)}.")
+            elif cmd == "/clear":
                 notes.append(f"Очередь историй очищена (было {inbox.clear(cfg['paths']['inbox'])}).")
             elif cmd == "/queue":
                 notes.append(_queue_report(cfg))
             else:
                 notes.append("Просто пришлите тексты роликов или файл .txt. Формат: первая строка «TITLE: заголовок», затем "
                              "либо текст истории, либо 5 строк вида «факт | кадр»; ролики разделяйте строкой из трёх "
-                             "дефисов (---). /queue — что в очереди, /clear — очистить очередь текстов.")
+                             "дефисов (---). /queue — что в очереди, /clear — очистить очередь текстов, /cancelall — отменить все готовые ролики.")
             continue
         texts.append(text)
     off_file.parent.mkdir(parents=True, exist_ok=True)

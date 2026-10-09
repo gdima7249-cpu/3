@@ -522,3 +522,30 @@ def test_inbox_dedupe_clear_and_append_only_new(tmp_path):
 
     assert inbox.clear(path) == 3 and not path.exists() and (tmp_path / "inbox.old.txt").exists()
     assert inbox.load(path) == []
+
+
+def test_cancel_all(tmp_path, capsys):
+    from faceless import inbox
+    from faceless.cli import main
+    from faceless.storage import Store
+
+    db = tmp_path / "db.sqlite3"
+    store = Store(db)
+    files = []
+    for i in range(3):
+        f = tmp_path / f"v{i}.mp4"
+        f.write_bytes(b"x")
+        files.append(f)
+        store.add_video(post_id=f"p{i}", part=1, parts=1, path=f, title=f"T{i}", description="d", tags=[],
+                        publish_at=f"2030-01-0{i + 1}T00:00:00+00:00")
+    store.set_result(1, "telegram", "55", None)          # уже доставлен: отменять нельзя
+    inb = tmp_path / "inbox.txt"
+    inbox.append(inb, "TITLE: A\n" + "enough text for a story here. " * 5)
+    cfg = tmp_path / "config.toml"
+    cfg.write_text(f'[paths]\ndb = "{db}"\ninbox = "{inb}"\n')
+    main(["-c", str(cfg), "cancel", "all", "--texts"])
+    out = capsys.readouterr().out
+    assert "Отменено готовых роликов: 2" in out and "очищена" in out
+    assert Store(db).undelivered() == 0 and files[0].exists() and not files[1].exists() and not files[2].exists()
+    assert Store(db).videos()[-1]["telegram_id"] == "55"   # доставленный остался как был
+    assert not inb.exists()
