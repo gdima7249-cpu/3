@@ -133,15 +133,18 @@ def synthesize(title: str, body: str, workdir: Path, cfg: dict, rng: random.Rand
         return path, words
 
     title_audio, title_words = say(title, "title")
-    gap = media.silence(workdir / "gap.mp3", 0.35)
-    gap2 = media.silence(workdir / "gap2.mp3", 0.3)
+    title_audio = media.to_wav(title_audio)
+    gap = media.to_wav(media.silence(workdir / "gap.mp3", 0.35))
+    gap2 = media.to_wav(media.silence(workdir / "gap2.mp3", 0.3))
 
     title_end = media.duration(title_audio)
     items = pieces if pieces else [body]  # факты озвучиваются по одному: так известно точное время каждого
     audios, words, times = [title_audio, gap], list(title_words), []
-    t = title_end + 0.35
+    title_end = media.duration(title_audio)
+    t = title_end + media.duration(gap)
     for i, text in enumerate(items):
         audio_i, words_i = say(text, f"body{i}")
+        audio_i = media.to_wav(audio_i)
         d = media.duration(audio_i)
         words += [Word(w.text, w.start + t, w.end + t) for w in words_i]
         times.append((t, t + d))
@@ -149,6 +152,6 @@ def synthesize(title: str, body: str, workdir: Path, cfg: dict, rng: random.Rand
         t += d
         if i < len(items) - 1:
             audios.append(gap2)
-            t += 0.3
+            t += media.duration(gap2)
     audio = media.concat_audio(audios, workdir / "voice.wav")
     return Speech(audio=audio, words=words, title_end=title_end, duration=media.duration(audio), pieces=times)

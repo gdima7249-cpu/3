@@ -26,6 +26,13 @@ def silence(path: Path, seconds: float) -> Path:
     return path
 
 
+def to_wav(path: Path) -> Path:
+    """mp3 -> wav 44.1 кГц моно: у mp3 есть служебные «хвосты», у wav длительность точная (нужна для таймингов)."""
+    out = path.with_suffix(".wav")
+    run(["ffmpeg", "-y", "-i", str(path), "-ar", "44100", "-ac", "1", "-c:a", "pcm_s16le", str(out)])
+    return out
+
+
 def concat_audio(inputs: list[Path], out: Path) -> Path:
     """Склеивает аудиофайлы последовательно, приводя к 44.1 кГц моно."""
     cmd = ["ffmpeg", "-y"]
