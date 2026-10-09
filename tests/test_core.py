@@ -350,7 +350,7 @@ def test_telegram_build_text_and_sync(tmp_path, monkeypatch):
     monkeypatch.setattr(telegram, "_call", fake_call)
     assert telegram.sync_inbox(cfg) == 1
     assert [t for t, _ in inbox.load(cfg["paths"]["inbox"])] == ["From phone"]  # чужое не попало
-    assert any("Добавлено историй: 1" in m for m in sent) and any("Готовых роликов" in m for m in sent)
+    assert any("Добавлено новых: 1" in m for m in sent) and any("Готовых роликов" in m for m in sent)
     assert (tmp_path / "tg_offset.txt").read_text() == "12"
     assert telegram.sync_inbox(cfg) == 0  # повторно те же сообщения не обрабатываются
 
@@ -501,3 +501,24 @@ def test_pixabay_candidates_and_library_fallback(tmp_path, monkeypatch):
     assert broll._library_clip("ocean waves", broll.library_clips(cfg), random.Random(1), set()).name == "ocean.mp4"
     out = broll.build_for(["ocean"], 8.0, tmp_path, cfg, random.Random(2), windows=[(4.0, "ocean"), (6.5, "night city")])
     assert media.duration(out) >= 10.0
+
+
+def test_inbox_dedupe_clear_and_append_only_new(tmp_path):
+    from faceless import inbox, pipeline
+
+    def story(title):
+        return f"TITLE: {title}\n" + "A long enough story text that goes on and on. " * 4
+
+    path = tmp_path / "inbox.txt"
+    batch = "\n---\n".join(story(t) for t in ("One", "Two", "Three"))
+    assert inbox.append(path, batch) == 3
+    assert inbox.append(path, batch) == 0                       # та же пачка второй раз: ничего нового
+    assert inbox.append(path, batch + "\n---\n" + story("Four")) == 1
+    assert [t for t, _ in inbox.load(path)] == ["One", "Two", "Three", "Four"]
+
+    # файл, где повторы уже накопились (как у пользователя), читается без дублей
+    path.write_text(batch + "\n---\n" + batch + "\n---\n" + batch, encoding="utf-8")
+    assert [t for t, _ in inbox.load(path)] == ["One", "Two", "Three"]
+
+    assert inbox.clear(path) == 3 and not path.exists() and (tmp_path / "inbox.old.txt").exists()
+    assert inbox.load(path) == []

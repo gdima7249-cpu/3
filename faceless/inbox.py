@@ -55,17 +55,41 @@ def split_visuals(body: str) -> tuple[str, list[str]]:
     return (body[:m.start()] + body[m.end():]).strip(), words[:8]
 
 
+def unique(stories: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Убирает повторы по заголовку, порядок сохраняется (одну и ту же пачку могли прислать несколько раз)."""
+    seen: set[str] = set()
+    out = []
+    for title, body in stories:
+        sid = story_id(title)
+        if sid not in seen:
+            seen.add(sid)
+            out.append((title, body))
+    return out
+
+
 def load(path: str | Path) -> list[tuple[str, str]]:
     p = Path(path)
-    return parse(p.read_text(encoding="utf-8")) if p.exists() else []
+    return unique(parse(p.read_text(encoding="utf-8"))) if p.exists() else []
 
 
 def append(path: str | Path, text: str) -> int:
-    """Дописывает пачку историй в файл, возвращает, сколько историй распознано."""
-    stories = parse(text)
-    if stories:
-        p = Path(path)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        with p.open("a", encoding="utf-8") as f:
-            f.write(("\n---\n" if p.exists() and p.stat().st_size else "") + text.strip() + "\n")
-    return len(stories)
+    """Дописывает в файл только НОВЫЕ истории (по заголовку); возвращает, сколько добавлено."""
+    p = Path(path)
+    have = {story_id(t) for t, _ in load(p)}
+    fresh = [(t, b) for t, b in unique(parse(text)) if story_id(t) not in have]
+    if not fresh:
+        return 0
+    p.parent.mkdir(parents=True, exist_ok=True)
+    chunk = "\n---\n".join(f"TITLE: {t}\n{b}" for t, b in fresh)
+    with p.open("a", encoding="utf-8") as f:
+        f.write(("\n---\n" if p.exists() and p.stat().st_size else "") + chunk + "\n")
+    return len(fresh)
+
+
+def clear(path: str | Path) -> int:
+    """Откладывает inbox.txt в резервную копию (inbox.old.txt) и очищает очередь; возвращает, сколько историй было."""
+    p = Path(path)
+    n = len(load(p))
+    if p.exists():
+        p.replace(p.with_name(p.stem + ".old" + p.suffix))
+    return n

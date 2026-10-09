@@ -138,12 +138,14 @@ def sync_inbox(cfg: dict) -> int:
                 continue
         if text.startswith("/"):
             cmd = text.split()[0].split("@")[0].lower()
-            if cmd == "/queue":
+            if cmd == "/clear":
+                notes.append(f"Очередь историй очищена (было {inbox.clear(cfg['paths']['inbox'])}).")
+            elif cmd == "/queue":
                 notes.append(_queue_report(cfg))
             else:
                 notes.append("Просто пришлите тексты роликов или файл .txt. Формат: первая строка «TITLE: заголовок», затем "
                              "либо текст истории, либо 5 строк вида «факт | кадр»; ролики разделяйте строкой из трёх "
-                             "дефисов (---). /queue — что в очереди.")
+                             "дефисов (---). /queue — что в очереди, /clear — очистить очередь текстов.")
             continue
         texts.append(text)
     off_file.parent.mkdir(parents=True, exist_ok=True)
@@ -151,10 +153,15 @@ def sync_inbox(cfg: dict) -> int:
 
     added = 0
     if texts:
-        added = inbox.append(cfg["paths"]["inbox"], build_text(texts))
+        text_all = build_text(texts)
+        total = len(inbox.unique(inbox.parse(text_all)))
+        added = inbox.append(cfg["paths"]["inbox"], text_all)
         if added:
             left = pipeline.inbox_left(cfg)
-            notes.append(f"✅ Добавлено историй: {added}. В очереди ждут: {left}.")
+            dup = f" Повторов пропущено: {total - added}." if total > added else ""
+            notes.append(f"✅ Добавлено новых: {added}.{dup} В очереди ждут: {left}.")
+        elif total:
+            notes.append(f"Все {total} уже были в очереди, ничего не добавлено.")
         else:
             notes.append("Не нашёл ни одного ролика. Нужен формат: первая строка «TITLE: заголовок», дальше текст "
                          "(не короче ~80 символов) или строки «факт | кадр»; ролики разделяйте строкой ---.")

@@ -142,6 +142,7 @@ def main(argv: list[str] | None = None) -> None:
     sk.add_argument("number", type=int, help="номер истории из `faceless queue`")
     ib = sub.add_parser("inbox", help="добавить пачку историй в очередь (вставкой или из файла)")
     ib.add_argument("file", nargs="?", help="файл с историями (необязательно; без него вставьте текст)")
+    ib.add_argument("--clear", action="store_true", help="очистить очередь историй (копия сохраняется в inbox.old.txt)")
     sub.add_parser("story", help="вставить историю вручную (заголовок и текст) и сделать из неё ролик")
 
     pb = sub.add_parser("publish", help="загрузить очередь на YouTube/TikTok")
@@ -253,6 +254,9 @@ def main(argv: list[str] | None = None) -> None:
     elif args.cmd == "inbox":
         from . import inbox
 
+        if args.clear:
+            n = inbox.clear(cfg["paths"]["inbox"])
+            raise SystemExit(f"Очередь историй очищена (было {n}). Копия: inbox.old.txt. Новые тексты пришлите боту или faceless inbox.")
         if args.file:
             text = Path(args.file).read_text(encoding="utf-8")
         else:
@@ -268,10 +272,12 @@ def main(argv: list[str] | None = None) -> None:
             except (KeyboardInterrupt, EOFError):
                 raise SystemExit("\nОтменено.")
             text = "\n".join(lines)
+        total = len(inbox.unique(inbox.parse(text)))
         n = inbox.append(cfg["paths"]["inbox"], text)
-        if not n:
+        if not total:
             raise SystemExit("Не нашёл ни одной истории. Нужен формат: заголовок, текст, затем строка --- и следующая.")
-        print(f"Добавлено историй: {n}. Всего ждут своей очереди: {pipeline.inbox_left(cfg)}.")
+        dup = f" (уже были в очереди и пропущены: {total - n})" if total > n else ""
+        print(f"Добавлено новых: {n}{dup}. Всего ждут своей очереди: {pipeline.inbox_left(cfg)}.")
     elif args.cmd == "story":
         print("Вставьте историю: первая строка — заголовок, дальше текст. Когда закончите, введите на отдельной")
         print("строке слово КОНЕЦ и нажмите Enter. (Отмена: Ctrl+C)\n")
