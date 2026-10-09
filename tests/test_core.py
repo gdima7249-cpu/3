@@ -462,3 +462,42 @@ def test_facts_parse_finalize_and_timing(tmp_path):
     ass = subtitles.build_ass([Word("hi", 1, 1.2)], start_at=0.5, end_at=3, width=720, height=1280, font="Inter",
                               font_size=61, highlight="&H0000F0FF", badges=[(1.0, 2.5, "FACT 2")])
     assert "FACT 2" in ass and "\\an8" in ass
+
+
+def test_pixabay_candidates_and_library_fallback(tmp_path, monkeypatch):
+    import random
+    import shutil
+    import subprocess
+
+    from faceless import broll, media
+    from faceless.config import DEFAULTS, _merge
+    from faceless.setup_wizard import _check_value
+
+    hit = {"id": 7, "videos": {"large": {"url": "https://cdn/large.mp4", "size": 80 * 2**20},   # слишком тяжёлый
+                               "medium": {"url": "https://cdn/medium.mp4", "size": 6 * 2**20},
+                               "small": {"url": "https://cdn/small.mp4", "size": 2 * 2**20}}}
+    assert broll.pick_pixabay(hit) == "https://cdn/medium.mp4"
+    assert broll.pick_pixabay({"videos": {"large": {"url": "", "size": 1}}}) is None
+
+    monkeypatch.delenv("PEXELS_API_KEY", raising=False)
+    monkeypatch.setenv("PIXABAY_API_KEY", "12345678-abcdef0123456789abcdef012")
+    monkeypatch.setattr(broll, "search_pixabay", lambda q, key, per_page=20: [hit])
+    assert broll.candidates("ocean") == [("pixabay-7", "https://cdn/medium.mp4")]
+    assert _check_value("PIXABAY_API_KEY", "12345678-abcdef0123456789abcdef012") is None
+    assert _check_value("PIXABAY_API_KEY", "no way") is not None
+
+    # без ключей, но со своими видео: имя файла = тема, подбор по словам
+    monkeypatch.delenv("PIXABAY_API_KEY")
+    lib = tmp_path / "assets" / "backgrounds"
+    lib.mkdir(parents=True)
+    src = tmp_path / "src.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=360x640:r=24", "-t", "6",
+                    "-c:v", "libx264", "-preset", "ultrafast", str(src)], check=True)
+    for name in ("ocean.mp4", "city_night.mp4", "auto_gradient_1.mp4"):
+        shutil.copy(src, lib / name)
+    cfg = _merge(DEFAULTS, {"paths": {"backgrounds_dir": str(lib)}, "video": {"width": 360, "height": 640, "fps": 24}})
+    assert [p.name for p in broll.library_clips(cfg)] == ["city_night.mp4", "ocean.mp4"]  # градиенты не в счёт
+    assert broll.enabled(cfg)
+    assert broll._library_clip("ocean waves", broll.library_clips(cfg), random.Random(1), set()).name == "ocean.mp4"
+    out = broll.build_for(["ocean"], 8.0, tmp_path, cfg, random.Random(2), windows=[(4.0, "ocean"), (6.5, "night city")])
+    assert media.duration(out) >= 10.0

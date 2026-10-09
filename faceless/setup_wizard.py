@@ -12,9 +12,11 @@ import requests
 GEMINI_KEY = ("GEMINI_API_KEY",
               "Ключ Gemini (его делает бесплатно Google AI Studio: aistudio.google.com/apikey, кнопка Create API key).\n"
               "  Этим ключом программа сама придумывает истории. Скопируйте ключ целиком.")
+PIXABAY_KEY = ("PIXABAY_API_KEY",
+               "Ключ Pixabay (бесплатный и выдаётся сразу: зарегистрируйтесь на pixabay.com, откройте\n"
+               "  pixabay.com/api/docs/ — ключ написан на этой странице в разделе Parameters). Нет ключа: Enter.")
 PEXELS_KEY = ("PEXELS_API_KEY",
-              "Ключ Pexels (бесплатный, pexels.com/api: нужна регистрация и кнопка Your API Key).\n"
-              "  По нему программа подбирает видео по теме истории вместо скучного фона. Нет ключа: Enter.")
+              "Ключ Pexels (pexels.com/api; если там «выдача ключей приостановлена», пропустите). Нет ключа: Enter.")
 ENV_KEYS = [
     ("ANTHROPIC_API_KEY", "Ключ Claude (Anthropic): пишет тексты лучше Gemini, но платный.\n"
                           "  Нет ключа: Enter."),
@@ -50,6 +52,8 @@ def _check_value(key: str, value: str) -> str | None:
                 "Файл Google будет запрошен позже, на отдельном шаге. Сейчас нажмите Enter, чтобы пропустить.")
     if " " in value or len(value) > 200:
         return "Ключ не должен содержать пробелов и быть очень длинным. Скопируйте только сам ключ."
+    if key == "PIXABAY_API_KEY" and not (15 <= len(value) <= 80 and value.replace("-", "").replace("_", "").isalnum()):
+        return "Ключ Pixabay: строка из цифр и букв (вроде 12345678-abcdef0123456789abcdef012). Скопируйте её целиком."
     if key == "PEXELS_API_KEY" and not (20 <= len(value) <= 120 and value.replace("-", "").replace("_", "").isalnum()):
         return "Ключ Pexels: длинная строка из букв и цифр без пробелов. Скопируйте его целиком."
     if key == "GEMINI_API_KEY" and not (value.startswith(("AIza", "AQ.")) and len(value) > 30):
@@ -125,8 +129,10 @@ def run(cfg: dict, config_path: str, with_keys: bool = False) -> None:
     _write_env(env_path, env)
 
     step += 1
-    _step(step, total, "Ключ Pexels (видео по теме истории)",
-          "Из-за него ролик перестанет быть скучным: кадры по теме меняются каждые ~5 секунд.")
+    _step(step, total, "Видео по теме (ключ Pixabay или Pexels)",
+          "Из-за него ролик перестанет быть скучным: кадры по теме меняются каждые ~5 секунд.\n"
+          "Достаточно одного ключа. Без ключей можно взять свои видео: faceless add-background ССЫЛКА --name ocean")
+    _ask_key(env, *PIXABAY_KEY)
     _ask_key(env, *PEXELS_KEY)
     _write_env(env_path, env)
 
@@ -248,7 +254,7 @@ def _html_hint(url: str, text: str) -> str:
             "(на Pexels: «Бесплатное скачивание» → правой кнопкой «Копировать адрес ссылки»).")
 
 
-def add_background(source: str, cfg: dict, keep_source: bool = False) -> Path:
+def add_background(source: str, cfg: dict, keep_source: bool = False, name: str | None = None) -> Path:
     """Добавляет фон: файл с сервера (залитый с вашего устройства) или прямая ссылка (Pexels, Диск, Dropbox)."""
     folder = Path(cfg["paths"]["backgrounds_dir"])
     folder.mkdir(parents=True, exist_ok=True)
@@ -261,7 +267,7 @@ def add_background(source: str, cfg: dict, keep_source: bool = False) -> Path:
             media.duration(local)
         except Exception:
             raise ValueError("Это не видео (или файл повреждён).")
-        name = re.sub(r"[^\w.-]+", "_", local.stem) + ".mp4"
+        name = re.sub(r"[^\w.-]+", "_", name or local.stem) + ".mp4"
         out = folder / name
         n = 1
         while out.exists():
@@ -278,8 +284,8 @@ def add_background(source: str, cfg: dict, keep_source: bool = False) -> Path:
         return result
 
     url = direct_link(source)
-    name = Path(urlparse(url).path).name or "background"
-    name = re.sub(r"[^\w.-]+", "_", name)
+    base = (name + ".mp4") if name else (Path(urlparse(url).path).name or "background")
+    name = re.sub(r"[^\w.-]+", "_", base)
     if not name.lower().endswith((".mp4", ".mov", ".mkv", ".webm")):
         name += ".mp4"
     out = folder / name

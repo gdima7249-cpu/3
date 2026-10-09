@@ -1,7 +1,11 @@
-"""Видеофон по теме истории: короткие кадры с Pexels (бесплатно, лицензия разрешает коммерческое использование).
+"""Видеофон по теме истории/факта: короткие кадры, которые меняются каждые ~5 секунд (приём «смена кадра»).
 
-Каждые ~5 секунд картинка меняется (приём «смена кадра»), кадры подбираются по ключевым словам истории
-(visuals) вперемешку с красивыми общими планами (город ночью, дождь, океан…). Ключ API бесплатный: pexels.com/api.
+Откуда берутся кадры (по порядку; что подключено, то и работает):
+  1. Pexels API  (PEXELS_API_KEY)   — бесплатно, лицензия разрешает коммерческое использование без указания автора;
+  2. Pixabay API (PIXABAY_API_KEY)  — то же самое, ключ выдаётся сразу после регистрации;
+  3. своя библиотека — видео из assets/backgrounds (имя файла = тема: ocean.mp4, city_night.mp4; подбор по словам
+     из ключевых слов, иначе случайные кадры).
+Если ничего нет, остаётся обычный градиентный фон.
 """
 from __future__ import annotations
 
@@ -9,6 +13,7 @@ import logging
 import math
 import os
 import random
+import re
 from pathlib import Path
 
 import requests
@@ -17,21 +22,38 @@ from . import media
 
 log = logging.getLogger("faceless")
 
-API = "https://api.pexels.com/videos/search"
+PEXELS_API = "https://api.pexels.com/videos/search"
+PIXABAY_API = "https://pixabay.com/api/videos/"
 GENERIC = [
     "city night lights", "rain on window", "ocean waves", "forest path", "slow motion water", "neon lights",
     "clouds timelapse", "candle flame", "coffee pouring", "street at night", "mountain mist", "paint swirl",
     "snow falling", "aerial city", "sunset sky", "highway night", "city rain", "smoke slow motion",
 ]
 MAX_CLIP_MB = 30
+VIDEO_EXT = {".mp4", ".mov", ".mkv", ".webm"}
+
+
+def api_keys() -> list[tuple[str, str]]:
+    return [(n, os.environ[e]) for n, e in (("pexels", "PEXELS_API_KEY"), ("pixabay", "PIXABAY_API_KEY"))
+            if os.environ.get(e)]
+
+
+def library_clips(cfg: dict) -> list[Path]:
+    """Свои клипы (без авто-градиентов) из папки фонов."""
+    folder = Path(cfg["paths"]["backgrounds_dir"])
+    if not folder.exists():
+        return []
+    return sorted(p for p in folder.iterdir()
+                  if p.suffix.lower() in VIDEO_EXT and not p.name.startswith("auto_gradient_"))
 
 
 def enabled(cfg: dict) -> bool:
-    return bool(cfg.get("broll", {}).get("enabled") and os.environ.get("PEXELS_API_KEY"))
+    return bool(cfg.get("broll", {}).get("enabled") and (api_keys() or library_clips(cfg)))
 
 
+# ---------------------------------------------------------------- Pexels
 def search(query: str, key: str, per_page: int = 15) -> list[dict]:
-    r = requests.get(API, headers={"Authorization": key}, timeout=20,
+    r = requests.get(PEXELS_API, headers={"Authorization": key}, timeout=20,
                      params={"query": query, "orientation": "portrait", "size": "medium", "per_page": per_page})
     r.raise_for_status()
     return r.json().get("videos", [])
@@ -45,6 +67,23 @@ def pick_file(video: dict, target_width: int = 720) -> str | None:
     if not files:
         return None
     return min(files, key=lambda f: abs(f["width"] - target_width))["link"]
+
+
+# ---------------------------------------------------------------- Pixabay
+def search_pixabay(query: str, key: str, per_page: int = 20) -> list[dict]:
+    r = requests.get(PIXABAY_API, timeout=20, params={"key": key, "q": query, "per_page": per_page,
+                                                      "safesearch": "true", "video_type": "film"})
+    r.raise_for_status()
+    return r.json().get("hits", [])
+
+
+def pick_pixabay(hit: dict) -> str | None:
+    """Лучшее качество, которое не слишком тяжёлое. Кадры в основном горизонтальные: ниже обрезаются по центру."""
+    for quality in ("large", "medium", "small"):
+        v = (hit.get("videos") or {}).get(quality) or {}
+        if v.get("url") and (v.get("size") or 0) <= MAX_CLIP_MB * 2**20:
+            return v["url"]
+    return None
 
 
 def download(url: str, dest: Path) -> Path:
@@ -64,21 +103,50 @@ def download(url: str, dest: Path) -> Path:
     return dest
 
 
-def _get_clip(query: str, key: str, cache: Path, rng: random.Random, used: set[int]) -> Path | None:
-    videos = search(query, key)
-    rng.shuffle(videos)
-    for video in videos:
-        if video["id"] in used:
+def candidates(query: str) -> list[tuple[str, str]]:
+    """[(уникальный id, ссылка), ...] из всех подключённых источников; сбой одного не ломает остальные."""
+    out: list[tuple[str, str]] = []
+    for name, key in api_keys():
+        try:
+            if name == "pexels":
+                for v in search(query, key):
+                    link = pick_file(v)
+                    if link:
+                        out.append((f"pexels-{v['id']}", link))
+            else:
+                for hit in search_pixabay(query, key):
+                    link = pick_pixabay(hit)
+                    if link:
+                        out.append((f"pixabay-{hit['id']}", link))
+        except Exception as e:
+            log.warning("%s «%s»: %s", name, query, e)
+    return out
+
+
+def _get_clip(query: str, cache: Path, rng: random.Random, used: set[str]) -> Path | None:
+    found = candidates(query)
+    rng.shuffle(found)
+    for cid, link in found:
+        if cid in used:
             continue
-        link = pick_file(video)
-        if not link:
-            continue
-        dest = cache / f"{video['id']}.mp4"
+        dest = cache / f"{cid}.mp4"
         if not dest.exists():
             download(link, dest)
-        used.add(video["id"])
+        used.add(cid)
         return dest
     return None
+
+
+def _library_clip(query: str, clips: list[Path], rng: random.Random, used: set[str]) -> Path | None:
+    """Свой клип: сначала по слову из имени файла (ocean.mp4 для «ocean waves»), иначе случайный."""
+    words = {w for w in re.findall(r"[a-zа-я0-9]+", query.lower()) if len(w) > 2}
+    matched = [c for c in clips if words & set(re.findall(r"[a-zа-я0-9]+", c.stem.lower()))]
+    pool = [c for c in (matched or clips) if c.name not in used] or (matched or clips)
+    if not pool:
+        return None
+    pick = rng.choice(pool)
+    used.add(pick.name)
+    return pick
 
 
 def prune_cache(cache: Path, max_mb: int) -> None:
@@ -126,8 +194,9 @@ def build_for(visuals: list[str], duration: float, workdir: Path, cfg: dict, rng
     """Собирает фон нужной длины из клипов по теме. Бросает исключение, если ничего не нашлось.
 
     windows — [(длина, запрос), ...]: кадры под конкретные куски озвучки (по одному запросу на каждый факт)."""
-    key, bc, vc = os.environ["PEXELS_API_KEY"], cfg["broll"], cfg["video"]
+    bc, vc = cfg["broll"], cfg["video"]
     cache = Path(cfg["paths"]["backgrounds_dir"]).parent / "broll_cache"
+    library = library_clips(cfg)
     seg = float(bc["scene_seconds"])
     specs: list[tuple[str, float]] = []  # (запрос, длина кадра)
     if windows:
@@ -137,18 +206,22 @@ def build_for(visuals: list[str], duration: float, workdir: Path, cfg: dict, rng
     else:
         for i in range(max(2, math.ceil((duration + 2.5) / seg))):
             specs.append((visuals[i % len(visuals)] if visuals and rng.random() < 0.7 else rng.choice(GENERIC), seg))
-    used: set[int] = set()
+    used: set[str] = set()
     scenes: list[tuple[Path, float]] = []
     for query, length in specs:
+        clip = None
         for attempt in (query, rng.choice(GENERIC)):  # не нашли по теме — берём красивый общий план
-            try:
-                clip = _get_clip(attempt, key, cache, rng, used)
-            except Exception as e:
-                log.warning("Pexels «%s»: %s", attempt, e)
-                clip = None
+            if api_keys():
+                try:
+                    clip = _get_clip(attempt, cache, rng, used)
+                except Exception as e:
+                    log.warning("видео «%s»: %s", attempt, e)
             if clip:
-                scenes.append((clip, length))
                 break
+        if not clip and library:
+            clip = _library_clip(query, library, rng, used)
+        if clip:
+            scenes.append((clip, length))
     if not scenes:
         raise RuntimeError("не удалось получить ни одного видеоклипа")
     out = workdir / "broll_bg.mp4"

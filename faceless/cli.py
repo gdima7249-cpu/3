@@ -102,8 +102,12 @@ def _print_overview(cfg: dict) -> None:
     left = pipeline.inbox_left(cfg)
     print(f"  {mark(left > 0 or adapt.llm_provider(cfg) is not None)} Источник историй: "
           f"ИИ {'подключён' if adapt.llm_provider(cfg) else 'не подключён'}, в inbox.txt ждут: {left}")
-    pex = bool(os.environ.get("PEXELS_API_KEY"))
-    print(f"  {mark(pex)} Видео по теме истории (Pexels)" + ("" if pex else "   (бесплатный ключ: pexels.com/api, затем faceless setup)"))
+    from . import broll
+
+    keys = [n for n, _ in broll.api_keys()]
+    own = len(broll.library_clips(cfg))
+    src = ", ".join(keys + ([f"свои видео: {own}"] if own else []))
+    print(f"  {mark(bool(src))} Видео по теме: {src or 'нет'}" + ("" if src else "   (ключ Pixabay: faceless setup)"))
     print(f"  {mark(True)} Фоновые видео: {len(bgs)}" + ("" if bgs else "   (не обязательно: программа сама создаст фоны; свои: faceless add-background ССЫЛКА)"))
     print(f"  Свободно на диске: {free_mb} МБ")
     if not (secrets.exists() and token.exists()) and not cfg["telegram"]["enabled"]:
@@ -147,6 +151,7 @@ def main(argv: list[str] | None = None) -> None:
     st.add_argument("--keys", action="store_true", help="спросить и необязательные ключи (Claude, Reddit)")
     bg = sub.add_parser("add-background", help="добавить фон: ссылка на видео или файл, залитый на сервер")
     bg.add_argument("source", help="прямая ссылка (Pexels, Google Диск, Dropbox) или путь к файлу, напр. /tmp/video.mp4")
+    bg.add_argument("--name", help="имя файла-темы, например ocean: по нему программа подбирает кадры к фактам")
     bg.add_argument("--keep-source", action="store_true", help="не удалять исходный файл с сервера")
     sub.add_parser("auth-youtube", help="однократная авторизация YouTube (OAuth)")
     sub.add_parser("status", help="последние ролики и статус публикаций")
@@ -313,7 +318,7 @@ def main(argv: list[str] | None = None) -> None:
     elif args.cmd == "add-background":
         from . import setup_wizard
         try:
-            print("Сохранено:", setup_wizard.add_background(args.source, cfg, args.keep_source))
+            print("Сохранено:", setup_wizard.add_background(args.source, cfg, args.keep_source, args.name))
         except Exception as e:
             raise SystemExit(f"Не получилось скачать: {e}")
     elif args.cmd == "auth-youtube":
