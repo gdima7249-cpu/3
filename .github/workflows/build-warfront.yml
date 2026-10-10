@@ -5,6 +5,9 @@ on:
     paths: ['warfront/**', '.github/workflows/build-warfront.yml']
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -26,6 +29,18 @@ jobs:
         with:
           name: Warfront-jar
           path: warfront/build/libs/warfront-*.jar
+      - name: Опубликовать jar в Releases
+        if: github.ref_type == 'branch'
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          JAR=$(ls warfront/build/libs/warfront-*.jar | grep -v -- '-sources' | head -n1)
+          echo "Публикую $JAR ($(stat -c%s "$JAR") байт)"
+          gh release delete warfront-latest --cleanup-tag -y || true
+          gh release create warfront-latest "$JAR" --target "$GITHUB_SHA" --prerelease \
+            --title "Warfront (последняя сборка)" \
+            --notes "Положи jar в папку mods (Forge 1.20.1). Сборка $GITHUB_SHA. Инструкция: warfront/README.md"
       - name: Дымовой тест (запуск сервера Minecraft с модом)
         run: python3 tools/smoke_test.py
       - uses: actions/upload-artifact@v4
