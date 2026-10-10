@@ -33,9 +33,12 @@ MAX_CLIP_MB = 30
 VIDEO_EXT = {".mp4", ".mov", ".mkv", ".webm"}
 
 
+_REJECTED: set[str] = set()  # источники, чей ключ отверг сервер (401/403): до конца запуска не трогаем
+
+
 def api_keys() -> list[tuple[str, str]]:
     return [(n, os.environ[e]) for n, e in (("pexels", "PEXELS_API_KEY"), ("pixabay", "PIXABAY_API_KEY"))
-            if os.environ.get(e)]
+            if os.environ.get(e) and n not in _REJECTED]
 
 
 def library_clips(cfg: dict) -> list[Path]:
@@ -119,7 +122,13 @@ def candidates(query: str) -> list[tuple[str, str]]:
                     if link:
                         out.append((f"pixabay-{hit['id']}", link))
         except Exception as e:
-            log.warning("%s «%s»: %s", name, query, e)
+            code = getattr(getattr(e, "response", None), "status_code", None)
+            if code in (400, 401, 403):
+                _REJECTED.add(name)
+                log.warning("Ключ %s не принят сервером (%s): отключаю этот источник. Проверьте ключ в .env "
+                            "(faceless setup) или удалите строку %s_API_KEY.", name, code, name.upper())
+            else:
+                log.warning("%s «%s»: %s", name, query, e)
     return out
 
 

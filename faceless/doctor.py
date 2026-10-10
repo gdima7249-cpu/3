@@ -132,6 +132,20 @@ def run(cfg: dict, fix: bool = False) -> int:
     if not publish_on:
         bad("ролики некуда доставлять: Telegram и YouTube не подключены")
 
+    print("\nВИДЕО ПО ТЕМЕ")
+    from . import broll
+
+    keys = broll.api_keys()
+    if not keys and not broll.library_clips(cfg):
+        bad("нет ни ключа Pixabay/Pexels, ни своих видео — фон будет однотонным", "faceless setup (ключ Pixabay)")
+    for name, key in keys:
+        try:
+            (broll.search if name == "pexels" else broll.search_pixabay)("ocean", key, 3)
+            ok(f"ключ {name} работает")
+        except Exception as e:
+            bad(f"ключ {name} не принят: {e}".split(" for url")[0],
+                f"откройте .env и исправьте или удалите строку {name.upper()}_API_KEY, затем faceless setup")
+
     print("\nСЕРВЕР")
     free = shutil.disk_usage(Path(cfg["paths"]["db"]).parent if Path(cfg["paths"]["db"]).parent.exists() else ".").free // 2**20
     ok(f"свободно на диске: {free} МБ") if free >= 300 else bad(f"на диске только {free} МБ", "faceless cancel all и очистка: rm -rf /opt/faceless/app/data/broll_cache")
