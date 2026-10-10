@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "warfront:block/enemy_flag"
+    }
+  }
+}
