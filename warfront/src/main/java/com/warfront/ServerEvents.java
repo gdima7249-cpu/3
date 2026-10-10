@@ -31,8 +31,8 @@ public final class ServerEvents {
         if (p.getPersistentData().getBoolean(KIT_TAG)) return;
         p.getPersistentData().putBoolean(KIT_TAG, true);
         giveKit(p);
-        p.sendSystemMessage(Component.literal("Ты - генерал. Поставь Штаб - там вырастет королевство. Постройте комнаты "
-                + "(стены, крыша, дверь, факел, кровать) и поставьте в них знак здания. Карта - клавиша M."));
+        Net.CHANNEL.send(PacketDistributor.PLAYER.with(() -> p), new com.warfront.net.NotifyPacket("Ты - генерал",
+                "Поставь Штаб. Построй комнаты (стены, крыша, дверь, факел, кровать) и поставь в них знак здания. Карта - клавиша M.", 0));
     }
 
     public static void giveKit(ServerPlayer p) {

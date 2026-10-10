@@ -89,6 +89,9 @@ room(30, 0, 10, door_x=30, door_z=5, bed_x=32, bed_z=2, beds=2, torch=(36, 8), m
 room(44, 0, 6, door_x=44, door_z=3, bed_x=0, bed_z=0, beds=0, torch=(48, 5), marker=(49, 6), kind='workshop')
 # танковый завод 10x10
 room(-12, 8, 10, door_x=-1, door_z=13, bed_x=0, bed_z=0, beds=0, torch=(-6, 10), marker=(-6, 17), kind='factory')
+# витрина всех блоков мода (для скриншотов)
+for i, blk in enumerate(['headquarters', 'house', 'barracks', 'farm', 'workshop', 'armory', 'factory', 'enemy_flag']):
+    say(f'{OW}setblock {-10 + i * 2} 149 -12 warfront:{blk}', 0.3)
 # армия
 say(f'{OW}summon warfront:tank 4 149 10')
 say(f'{OW}summon warfront:tank -3 149 4')

@@ -40,7 +40,7 @@ public final class KingdomManager {
         KingdomData d = KingdomData.get(level.getServer());
         d.founded = true;
         d.hq = pos;
-        d.pop = 12;
+        d.pop = 6;
         d.food = 120;
         d.iron = 80;
         d.ammo = 80;
@@ -105,7 +105,7 @@ public final class KingdomManager {
             d.food = 0;
             if (d.pop > 0) {
                 d.pop--;
-                notify(server, "Голод", "Население сокращается. Нужны фермы.", 1);
+                notify(server, "Голод", "Население сокращается. Нужны фермы.", 2);
             }
         }
         d.setDirty();
@@ -127,7 +127,7 @@ public final class KingdomManager {
             if (now == null) continue;
             e.setValue(now);
             if (old.valid && !now.valid) {
-                notify(server, bb.type.title + " не работает", now.text, 1);
+                notify(server, bb.type.title + " не работает", now.text, 2);
             } else if (!old.valid && now.valid) {
                 notify(server, bb.type.title + " принят", now.text, 0);
             }
@@ -175,7 +175,7 @@ public final class KingdomManager {
             if (s != null) s.giveOrder(SoldierEntity.ATTACK, d.hq);
         }
         d.raidsSurvived++;
-        notify(level.getServer(), "ТРЕВОГА: налёт", n + " солдат с " + direction(ang) + ". Занимайте оборону у штаба!", 1);
+        notify(level.getServer(), "ТРЕВОГА: налёт", n + " солдат с " + direction(ang) + ". Держите оборону у штаба!", 1);
         d.setDirty();
     }
 

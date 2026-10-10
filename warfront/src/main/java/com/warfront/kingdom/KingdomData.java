@@ -68,13 +68,13 @@ public class KingdomData extends SavedData {
 
     /** Вместимость жилья: места в кроватях рабочих домов и казарм, плюс палатки штаба и освобождённые форпосты. */
     public int capacity() {
-        int cap = 4 + capturedOutposts * 10;
+        int cap = 12 + capturedOutposts * 10;
         for (Building b : buildings.values()) if (b.valid) cap += b.capacity;
         return cap;
     }
 
     public int soldierCap() {
-        int cap = 4;
+        int cap = 6;
         for (Building b : buildings.values()) if (b.valid && b.type == BuildingType.BARRACKS) cap += b.capacity;
         return cap;
     }

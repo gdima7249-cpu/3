@@ -307,6 +307,10 @@ def soldier(name, cloth, cloth2, skin, accent):
     d.rectangle([0, 16, 15, 31], fill=cloth2 + (255,))
     d.rectangle([16, 48, 47, 63], fill=cloth + (255,))
     noise(img, 12)
+    px = img.load()
+    for x in range(32, 64):           # слой "шляпа" должен быть прозрачным, иначе закрывает лицо
+        for y in range(0, 16):
+            px[x, y] = (0, 0, 0, 0)
     save(img, f'entity/{name}.png')
 
 

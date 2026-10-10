@@ -47,7 +47,7 @@ public class CommandMapScreen extends Screen {
     private KingdomView view;
     private Tab tab = Tab.ARMY;
     private double centerX, centerZ;
-    private int scaleIdx = 2;
+    private int scaleIdx = 1;
     private int squad = 1;
     private int orderType = SoldierEntity.MOVE;
     private int texW, texH;
@@ -58,6 +58,8 @@ public class CommandMapScreen extends Screen {
     private boolean centered;
     private int listScroll;
     private int selectedBuilding = -1;
+    // раскладка правой панели (зависит от высоты экрана)
+    private int row, lyStats, lySquadLbl, lySquad, lyOrderLbl, lyOrder, lyInfo, lyRecruit, lyTank, lyList;
     private final List<Button> squadButtons = new ArrayList<>();
     private final List<Button> orderButtons = new ArrayList<>();
     private final List<Button> buyButtons = new ArrayList<>();
@@ -125,34 +127,46 @@ public class CommandMapScreen extends Screen {
         else if (tab == Tab.BUILD) buildShop(px);
     }
 
+    private void layout() {
+        boolean roomy = height >= 330;
+        row = roomy ? 16 : 12;
+        lyStats = 44;
+        int y = lyStats + 6 * row + 6;
+        lySquadLbl = y;
+        lySquad = y + 10;
+        lyOrderLbl = lySquad + 24;
+        lyOrder = lyOrderLbl + 10;
+        lyInfo = lyOrder + 24;
+        lyRecruit = lyInfo + (roomy ? 36 : 25);
+        lyTank = lyRecruit + 22;
+        lyList = 126;
+    }
+
     private void buildArmy(int px) {
-        int y = 118;
+        layout();
         for (int i = 1; i <= KingdomData.SQUADS; i++) {
-            final int s = i;
+            final int sq = i;
             squadButtons.add(addRenderableWidget(Button.builder(Component.literal(String.valueOf(i)), btn -> {
-                squad = s;
+                squad = sq;
                 rebuildWidgets();
-            }).bounds(px + (i - 1) * 38, y, 36, 18).build()));
+            }).bounds(px + (i - 1) * 38, lySquad, 36, 18).build()));
         }
-        y += 40;
         for (int t = 1; t <= 3; t++) {
             final int type = t;
             orderButtons.add(addRenderableWidget(Button.builder(Component.literal(ORDER_NAMES[t]), btn -> {
                 orderType = type;
                 rebuildWidgets();
-            }).bounds(px + (t - 1) * 63, y, 61, 18).build()));
+            }).bounds(px + (t - 1) * 63, lyOrder, 61, 18).build()));
         }
-        y += 52;
         addRenderableWidget(Button.builder(Component.literal("+1 боец"), btn ->
                 Net.CHANNEL.sendToServer(new ActionPacket(ActionPacket.RECRUIT, squad, 1)))
-                .bounds(px, y, 92, 18).build());
+                .bounds(px, lyRecruit, 92, 18).build());
         addRenderableWidget(Button.builder(Component.literal("+5 бойцов"), btn ->
                 Net.CHANNEL.sendToServer(new ActionPacket(ActionPacket.RECRUIT, squad, 5)))
-                .bounds(px + 96, y, 92, 18).build());
-        y += 22;
+                .bounds(px + 96, lyRecruit, 92, 18).build());
         addRenderableWidget(Button.builder(Component.literal("Построить танк"), btn ->
                 Net.CHANNEL.sendToServer(new ActionPacket(ActionPacket.BUILD_TANK, squad, 0)))
-                .bounds(px, y, 188, 18).build());
+                .bounds(px, lyTank, 188, 18).build());
         updateLabels();
     }
 
@@ -167,21 +181,22 @@ public class CommandMapScreen extends Screen {
     }
 
     private void buildShop(int px) {
+        layout();
         BuildingType[] types = BuildingType.values();
-        int y = 32;
         for (int i = 0; i < types.length; i++) {
             final int idx = i;
             BuildingType t = types[i];
-            buyButtons.add(addRenderableWidget(Button.builder(Component.literal(t.title + " - " + t.price + " жел."), btn ->
+            int bx = px + (i % 2) * 96;
+            int by = 30 + (i / 2) * 22;
+            buyButtons.add(addRenderableWidget(Button.builder(Component.literal(t.title + " " + t.price), btn ->
                     Net.CHANNEL.sendToServer(new ActionPacket(ActionPacket.BUY, idx, 0)))
-                    .bounds(px, y, 188, 18).build()));
-            buyHints.add(t.hint);
-            y += 20;
+                    .bounds(bx, by, 92, 20).build()));
+            buyHints.add(t.title + " - " + t.price + " железа. " + t.hint);
         }
-        buyButtons.add(addRenderableWidget(Button.builder(Component.literal("Набор мебели - 10 жел."), btn ->
+        buyButtons.add(addRenderableWidget(Button.builder(Component.literal("Набор мебели  10"), btn ->
                 Net.CHANNEL.sendToServer(new ActionPacket(ActionPacket.BUY, types.length, 0)))
-                .bounds(px, y, 188, 18).build()));
-        buyHints.add("2 кровати, дверь, 4 факела");
+                .bounds(px, 30 + 3 * 22, 188, 20).build()));
+        buyHints.add("Набор мебели - 10 железа: 2 кровати, дверь, 4 факела");
     }
 
     private void ensureTexture() {
@@ -223,7 +238,7 @@ public class CommandMapScreen extends Screen {
         super.tick();
         ticks++;
         if (ticks % 20 == 0) Net.CHANNEL.sendToServer(new ActionPacket(ActionPacket.SYNC, 0, 0));
-        if (ticks % 40 == 1) dirty = true;
+        if (ticks % 40 == 1 || (ticks <= 60 && ticks % 5 == 0)) dirty = true;
         if (dirty) redraw();
     }
 
@@ -354,49 +369,49 @@ public class CommandMapScreen extends Screen {
     }
 
     private void renderArmy(GuiGraphics g, int x) {
-        int y = 34;
-        g.drawString(font, "День " + view.day + "   |   налётов: " + view.raids + ", освобождено: " + view.freed, x, y, 0xFFFFD84A);
-        y += 14;
+        layout();
+        g.drawString(font, "День " + view.day + "  |  налётов " + view.raids + ", освобождено " + view.freed, x, 31, 0xFFFFD84A);
+        int y = lyStats;
         stat(g, x, y, new ItemStack(Items.RED_BED), "Население", view.pop + " / " + view.cap, view.pop >= view.cap ? 0xFFFF9090 : 0xFFFFFFFF);
-        y += 12;
+        y += row;
         stat(g, x, y, new ItemStack(Items.BREAD), "Еда", String.valueOf(view.food), view.food < 20 ? 0xFFFF6060 : 0xFFFFFFFF);
-        y += 12;
+        y += row;
         stat(g, x, y, new ItemStack(Items.IRON_INGOT), "Железо", String.valueOf(view.iron), 0xFFFFFFFF);
-        y += 12;
+        y += row;
         stat(g, x, y, new ItemStack(Items.GUNPOWDER), "Боеприпасы", String.valueOf(view.ammo), 0xFFFFFFFF);
-        y += 12;
+        y += row;
         stat(g, x, y, new ItemStack(Items.IRON_HELMET), "Солдаты", view.soldiers + " / " + view.soldierCap, 0xFFFFFFFF);
-        y += 12;
+        y += row;
         stat(g, x, y, new ItemStack(Items.IRON_BLOCK), "Танки", view.tanks + " / " + view.tankCap, 0xFFFFFFFF);
-        g.drawString(font, "Отряд (клавиши 1-5):", x, 106, 0xFFB0B0B0);
-        g.drawString(font, "Приказ по клику на карту:", x, 146, 0xFFB0B0B0);
-        int y2 = 192;
-        g.drawString(font, "Отряд " + squad + ": солдат " + view.squadSoldiers[squad] + ", танков " + view.squadTanks[squad], x, y2, 0xFFFFFFFF);
+        g.drawString(font, "Отряд (клавиши 1-5):", x, lySquadLbl, 0xFFB0B0B0);
+        g.drawString(font, "Приказ по клику на карту:", x, lyOrderLbl, 0xFFB0B0B0);
+        g.drawString(font, "Отряд " + squad + ": солдат " + view.squadSoldiers[squad] + ", танков " + view.squadTanks[squad], x, lyInfo, 0xFFFFFFFF);
         int ord = view.squadOrder[squad];
-        g.drawString(font, "Текущий приказ: " + (ord == 0 ? "нет" : ORDER_NAMES[ord]), x, y2 + 11, 0xFFE0E0A0);
-        g.drawString(font, "Наём: 1 чел., 5 железа, 5 боеприпасов", x, y2 + 24, 0xFF808080);
+        g.drawString(font, "Приказ: " + (ord == 0 ? "нет" : ORDER_NAMES[ord]), x, lyInfo + 11, 0xFFE0E0A0);
+        if (height >= 330) g.drawString(font, "Наём: 1 чел., 5 железа, 5 боеприпасов", x, lyInfo + 22, 0xFF808080);
     }
 
     private void renderBuild(GuiGraphics g, int x) {
+        layout();
         BuildingType[] types = BuildingType.values();
-        int y = 32 + (types.length + 1) * 20 + 4;
-        g.drawString(font, "Твои здания (клик - показать на карте):", x, y, 0xFFB0B0B0);
-        y += 12;
-        int rows = Math.max(1, (height - 44 - y - 44) / 11);
+        g.drawString(font, "Твои здания (клик - на карту):", x, lyList - 12, 0xFFB0B0B0);
+        int y = lyList;
+        int bottom = height - 84;
+        int rows = Math.max(1, (bottom - y) / 11);
         listScroll = Math.max(0, Math.min(listScroll, Math.max(0, view.buildingList.size() - rows)));
         for (int i = listScroll; i < view.buildingList.size() && i < listScroll + rows; i++) {
             KingdomView.BuildingView b = view.buildingList.get(i);
-            String cap = b.valid && b.capacity > 0 ? " +" + b.capacity : "";
-            String line = (b.valid ? "ok " : "x  ") + types[b.type].title + cap;
+            String cap = b.valid && b.capacity > 0 ? "  +" + b.capacity + " мест" : "";
+            String line = (b.valid ? "+ " : "x ") + types[b.type].title + cap;
             int color = b.valid ? 0xFF80FF80 : 0xFFFF8080;
             if (i == selectedBuilding) g.fill(x - 2, y - 1, x + 190, y + 10, 0x60FFFFFF);
             g.drawString(font, line, x, y, color);
             y += 11;
         }
-        if (view.buildingList.isEmpty()) g.drawString(font, "Пока нет. Построй комнату и поставь знак.", x, y, 0xFF808080);
+        if (view.buildingList.isEmpty()) g.drawString(font, "Пока нет. Построй комнату, поставь знак.", x, y, 0xFF808080);
         if (selectedBuilding >= 0 && selectedBuilding < view.buildingList.size()) {
             KingdomView.BuildingView b = view.buildingList.get(selectedBuilding);
-            int dy = height - 44 - 36;
+            int dy = height - 78;
             g.fill(x - 4, dy - 3, panelX() + PANEL - 4, height - 44, 0x80000000);
             int i = 0;
             for (FormattedCharSequence l : font.split(Component.literal(b.text), 190)) {
@@ -434,7 +449,7 @@ public class CommandMapScreen extends Screen {
             return true;
         }
         if (button == 0 && tab == Tab.BUILD && mx >= panelX()) {
-            int y0 = 32 + (BuildingType.values().length + 1) * 20 + 4 + 12;
+            int y0 = lyList;
             int idx = listScroll + (int) ((my - y0) / 11);
             if (my >= y0 && idx >= 0 && idx < view.buildingList.size()) {
                 selectedBuilding = idx;

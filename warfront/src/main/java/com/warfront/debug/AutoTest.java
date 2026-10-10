@@ -57,35 +57,45 @@ public final class AutoTest {
                 p.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND,
                         new net.minecraft.world.item.ItemStack(com.warfront.ModItems.RIFLE.get()));
             }
-            // обзор базы сверху: штаб, комнаты, солдаты, танк
-            case 100 -> tp(p, 14, 158, -20, 0, 28);
-            case 180 -> shot(p, "01_base_overview");
-            // танк и солдаты вблизи
-            case 220 -> tp(p, 4, 151.2, 12, 180, 8);
-            case 300 -> shot(p, "02_tank_soldiers_front");
-            case 330 -> tp(p, -3, 151.5, -2, -50, 6);
-            case 400 -> shot(p, "03_hq_closeup");
-            // комнаты: дом и казарма снаружи
-            case 430 -> tp(p, 24, 153, 14, 0, 16);
-            case 500 -> shot(p, "04_house_outside");
-            // внутри дома: кровать, дверь, свет
-            case 520 -> tp(p, 22.5, 150.1, 21.5, 160, 20);
-            case 590 -> shot(p, "05_house_inside");
-            // винтовка в руке от первого лица
-            case 610 -> tp(p, 10, 150.1, 8, 20, 4);
-            case 670 -> shot(p, "06_rifle_first_person");
-            case 680 -> shot(p, "CAM:third");
-            case 740 -> shot(p, "07_third_person");
-            case 750 -> shot(p, "CAM:first");
+            // обзор базы сверху
+            case 80 -> tp(p, 22, 176, 66, 180, 33);
+            case 160 -> shot(p, "01_base_overview");
+            // витрина всех блоков мода
+            case 180 -> tp(p, -1, 150.4, 0.5, 180, 12);
+            case 250 -> shot(p, "02_showcase_blocks");
+            // армия: танки и солдаты
+            case 270 -> tp(p, 6, 150.6, 21, 180, 7);
+            case 340 -> shot(p, "03_army");
+            // штаб вблизи
+            case 360 -> tp(p, 1.5, 150.4, 6, 180, 6);
+            case 430 -> shot(p, "04_headquarters");
+            // дом снаружи (дверь на западной стене)
+            case 450 -> tp(p, 13, 150.4, 23.5, -90, 6);
+            case 520 -> shot(p, "05_house_outside");
+            // дом внутри: кровать, свет
+            case 540 -> tp(p, 25.5, 150.2, 24.5, 135, 18);
+            case 610 -> shot(p, "06_house_inside");
+            // казарма
+            case 630 -> tp(p, 35.5, 152.5, -9, 0, 24);
+            case 700 -> shot(p, "07_barracks");
+            // ферма
+            case 720 -> tp(p, 16.5, 152.5, -14, 0, 28);
+            case 790 -> shot(p, "08_farm");
+            // винтовка от первого и третьего лица
+            case 810 -> tp(p, 8, 150.4, 18, 150, 4);
+            case 880 -> shot(p, "09_rifle_first_person");
+            case 890 -> shot(p, "CAM:third");
+            case 950 -> shot(p, "10_third_person");
+            case 960 -> shot(p, "CAM:first");
             // интерфейс: карта и вкладки
-            case 780 -> shot(p, "UI:map");
-            case 860 -> shot(p, "08_map_army");
-            case 870 -> shot(p, "UI:build");
-            case 900 -> shot(p, "09_map_buildings");
-            case 910 -> shot(p, "UI:log");
-            case 940 -> shot(p, "10_map_log");
-            case 950 -> shot(p, "UI:close");
-            case 1000 -> shot(p, "EXIT");
+            case 990 -> shot(p, "UI:map");
+            case 1070 -> shot(p, "11_map_army");
+            case 1080 -> shot(p, "UI:build");
+            case 1110 -> shot(p, "12_map_buildings");
+            case 1120 -> shot(p, "UI:log");
+            case 1150 -> shot(p, "13_map_log");
+            case 1160 -> shot(p, "UI:close");
+            case 1200 -> shot(p, "EXIT");
             default -> { }
         }
     }

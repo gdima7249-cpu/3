@@ -32,16 +32,19 @@ public final class TerrainCache {
         }
         long now = level.getGameTime();
         int done = 0;
-        for (int dx = -radius; dx <= radius && done < budget; dx++) {
-            for (int dz = -radius; dz <= radius && done < budget; dz++) {
-                int cx = ccx + dx, cz = ccz + dz;
-                if (!level.getChunkSource().hasChunk(cx, cz)) continue;
-                long k = key(cx, cz);
-                Long stamp = STAMPS.get(k);
-                if (stamp != null && now - stamp < 400) continue;
-                CHUNKS.put(k, compute(level, cx, cz));
-                STAMPS.put(k, now);
-                done++;
+        for (int r = 0; r <= radius && done < budget; r++) {
+            for (int dx = -r; dx <= r && done < budget; dx++) {
+                for (int dz = -r; dz <= r && done < budget; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
+                    int cx = ccx + dx, cz = ccz + dz;
+                    if (!level.getChunkSource().hasChunk(cx, cz)) continue;
+                    long k = key(cx, cz);
+                    Long stamp = STAMPS.get(k);
+                    if (stamp != null && now - stamp < 400) continue;
+                    CHUNKS.put(k, compute(level, cx, cz));
+                    STAMPS.put(k, now);
+                    done++;
+                }
             }
         }
     }

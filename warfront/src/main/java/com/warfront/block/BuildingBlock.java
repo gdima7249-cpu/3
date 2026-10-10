@@ -72,7 +72,7 @@ public class BuildingBlock extends Block {
             return;
         }
         String title = (b.valid ? "Принято: " : "Не принято: ") + type.title;
-        Net.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new NotifyPacket(title, b.text, b.valid ? 0 : 1));
+        Net.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new NotifyPacket(title, b.text, b.valid ? 0 : 2));
     }
 
     @Override
