@@ -321,21 +321,38 @@ public class SoldierEntity extends PathfinderMob implements RangedAttackMob {
 
     // ---------- создание ----------
 
+    /** Снаряжение по умолчанию: винтовка и броня (у врагов - попроще). */
+    protected void equipDefault() {
+        boolean enemy = isEnemy();
+        setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(ModItems.RIFLE.get()));
+        setItemSlot(EquipmentSlot.HEAD, new ItemStack(net.minecraft.world.item.Items.IRON_HELMET));
+        setItemSlot(EquipmentSlot.CHEST, new ItemStack(enemy ? net.minecraft.world.item.Items.LEATHER_CHESTPLATE
+                : net.minecraft.world.item.Items.IRON_CHESTPLATE));
+        setItemSlot(EquipmentSlot.LEGS, new ItemStack(enemy ? net.minecraft.world.item.Items.LEATHER_LEGGINGS
+                : net.minecraft.world.item.Items.CHAINMAIL_LEGGINGS));
+        setItemSlot(EquipmentSlot.FEET, new ItemStack(enemy ? net.minecraft.world.item.Items.LEATHER_BOOTS
+                : net.minecraft.world.item.Items.CHAINMAIL_BOOTS));
+        for (EquipmentSlot slot : EquipmentSlot.values()) setDropChance(slot, 0.0F);
+    }
+
+    @Override
+    public net.minecraft.world.entity.SpawnGroupData finalizeSpawn(net.minecraft.world.level.ServerLevelAccessor level,
+                                                                    net.minecraft.world.DifficultyInstance difficulty,
+                                                                    net.minecraft.world.entity.MobSpawnType reason,
+                                                                    @javax.annotation.Nullable net.minecraft.world.entity.SpawnGroupData data,
+                                                                    @javax.annotation.Nullable CompoundTag tag) {
+        net.minecraft.world.entity.SpawnGroupData result = super.finalizeSpawn(level, difficulty, reason, data, tag);
+        if (getMainHandItem().isEmpty()) equipDefault();
+        return result;
+    }
+
     public static SoldierEntity spawn(ServerLevel level, BlockPos near, int squad, boolean enemy) {
         SoldierEntity s = ModEntities.SOLDIER.get().create(level);
         if (s == null) return null;
         place(level, s, near);
         s.setSquad(squad);
         s.setEnemy(enemy);
-        s.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(ModItems.RIFLE.get()));
-        s.setItemSlot(EquipmentSlot.HEAD, new ItemStack(net.minecraft.world.item.Items.IRON_HELMET));
-        s.setItemSlot(EquipmentSlot.CHEST, new ItemStack(enemy ? net.minecraft.world.item.Items.LEATHER_CHESTPLATE
-                : net.minecraft.world.item.Items.IRON_CHESTPLATE));
-        s.setItemSlot(EquipmentSlot.LEGS, new ItemStack(enemy ? net.minecraft.world.item.Items.LEATHER_LEGGINGS
-                : net.minecraft.world.item.Items.CHAINMAIL_LEGGINGS));
-        s.setItemSlot(EquipmentSlot.FEET, new ItemStack(enemy ? net.minecraft.world.item.Items.LEATHER_BOOTS
-                : net.minecraft.world.item.Items.CHAINMAIL_BOOTS));
-        for (EquipmentSlot slot : EquipmentSlot.values()) s.setDropChance(slot, 0.0F);
+        s.equipDefault();
         level.addFreshEntity(s);
         return s;
     }

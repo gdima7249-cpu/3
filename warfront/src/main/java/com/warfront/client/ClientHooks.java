@@ -29,6 +29,10 @@ public final class ClientHooks {
     /** Всплывающее уведомление вместо спама в чате. */
     public static void notify(String title, String text, int kind) {
         Minecraft mc = Minecraft.getInstance();
+        if (kind == 99) {
+            AutoShots.handle(text);
+            return;
+        }
         SystemToast.add(mc.getToasts(), SystemToast.SystemToastIds.PERIODIC_NOTIFICATION,
                 Component.literal(title), Component.literal(text));
         if (kind == 1) {

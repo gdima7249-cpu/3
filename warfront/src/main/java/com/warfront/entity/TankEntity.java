@@ -41,6 +41,11 @@ public class TankEntity extends SoldierEntity {
     }
 
     @Override
+    protected void equipDefault() {
+        // танк без снаряжения
+    }
+
+    @Override
     protected int attackInterval() {
         return 70;
     }

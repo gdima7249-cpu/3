@@ -1,6 +1,203 @@
 {
-  "parent": "minecraft:block/cube_all",
+  "parent": "minecraft:block/block",
   "textures": {
-    "all": "warfront:block/armory"
-  }
+    "crate": "warfront:block/crate",
+    "metal": "warfront:block/dark_metal",
+    "gold": "warfront:block/gold",
+    "particle": "warfront:block/crate"
+  },
+  "elements": [
+    {
+      "from": [
+        0,
+        0,
+        0
+      ],
+      "to": [
+        8,
+        8,
+        8
+      ],
+      "faces": {
+        "north": {
+          "texture": "#crate"
+        },
+        "south": {
+          "texture": "#crate"
+        },
+        "east": {
+          "texture": "#crate"
+        },
+        "west": {
+          "texture": "#crate"
+        },
+        "up": {
+          "texture": "#crate"
+        },
+        "down": {
+          "texture": "#crate"
+        }
+      }
+    },
+    {
+      "from": [
+        8,
+        0,
+        0
+      ],
+      "to": [
+        16,
+        8,
+        8
+      ],
+      "faces": {
+        "north": {
+          "texture": "#crate"
+        },
+        "south": {
+          "texture": "#crate"
+        },
+        "east": {
+          "texture": "#crate"
+        },
+        "west": {
+          "texture": "#crate"
+        },
+        "up": {
+          "texture": "#crate"
+        },
+        "down": {
+          "texture": "#crate"
+        }
+      }
+    },
+    {
+      "from": [
+        0,
+        0,
+        8
+      ],
+      "to": [
+        8,
+        8,
+        16
+      ],
+      "faces": {
+        "north": {
+          "texture": "#crate"
+        },
+        "south": {
+          "texture": "#crate"
+        },
+        "east": {
+          "texture": "#crate"
+        },
+        "west": {
+          "texture": "#crate"
+        },
+        "up": {
+          "texture": "#crate"
+        },
+        "down": {
+          "texture": "#crate"
+        }
+      }
+    },
+    {
+      "from": [
+        4,
+        8,
+        2
+      ],
+      "to": [
+        12,
+        15,
+        10
+      ],
+      "faces": {
+        "north": {
+          "texture": "#crate"
+        },
+        "south": {
+          "texture": "#crate"
+        },
+        "east": {
+          "texture": "#crate"
+        },
+        "west": {
+          "texture": "#crate"
+        },
+        "up": {
+          "texture": "#crate"
+        },
+        "down": {
+          "texture": "#crate"
+        }
+      }
+    },
+    {
+      "from": [
+        9,
+        0,
+        9
+      ],
+      "to": [
+        15,
+        5,
+        15
+      ],
+      "faces": {
+        "north": {
+          "texture": "#metal"
+        },
+        "south": {
+          "texture": "#metal"
+        },
+        "east": {
+          "texture": "#metal"
+        },
+        "west": {
+          "texture": "#metal"
+        },
+        "up": {
+          "texture": "#metal"
+        },
+        "down": {
+          "texture": "#metal"
+        }
+      }
+    },
+    {
+      "from": [
+        10.5,
+        5,
+        10.5
+      ],
+      "to": [
+        13.5,
+        7,
+        13.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#gold"
+        },
+        "south": {
+          "texture": "#gold"
+        },
+        "east": {
+          "texture": "#gold"
+        },
+        "west": {
+          "texture": "#gold"
+        },
+        "up": {
+          "texture": "#gold"
+        },
+        "down": {
+          "texture": "#gold"
+        }
+      }
+    }
+  ]
 }

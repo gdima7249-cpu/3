@@ -19,6 +19,7 @@ public final class ClientEvents {
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         Minecraft mc = Minecraft.getInstance();
+        AutoShots.tick();
         while (ClientSetup.FIRE.consumeClick()) {
             if (mc.player != null && mc.player.getVehicle() instanceof TankEntity) {
                 Net.CHANNEL.sendToServer(new ActionPacket(ActionPacket.FIRE, 0, 0));

@@ -68,6 +68,12 @@ public class CommandMapScreen extends Screen {
         this.view = view;
     }
 
+    /** Для автотеста CI: переключить вкладку. */
+    public void debugTab(int index) {
+        tab = Tab.values()[index];
+        rebuildWidgets();
+    }
+
     public void update(KingdomView v) {
         this.view = v;
     }

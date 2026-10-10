@@ -1,6 +1,237 @@
 {
-  "parent": "minecraft:block/cube_all",
+  "parent": "minecraft:block/block",
   "textures": {
-    "all": "warfront:block/barracks"
-  }
+    "wall": "warfront:block/stone_brick",
+    "roof": "warfront:block/dark_metal",
+    "flag": "warfront:block/cloth_green",
+    "door": "warfront:block/door_wood",
+    "wood": "warfront:block/wall_plank",
+    "particle": "warfront:block/stone_brick"
+  },
+  "elements": [
+    {
+      "from": [
+        0,
+        0,
+        1
+      ],
+      "to": [
+        16,
+        9,
+        15
+      ],
+      "faces": {
+        "north": {
+          "texture": "#wall"
+        },
+        "south": {
+          "texture": "#wall"
+        },
+        "east": {
+          "texture": "#wall"
+        },
+        "west": {
+          "texture": "#wall"
+        },
+        "up": {
+          "texture": "#wall"
+        },
+        "down": {
+          "texture": "#wall"
+        }
+      }
+    },
+    {
+      "from": [
+        -0.5,
+        9,
+        0.5
+      ],
+      "to": [
+        16.5,
+        10.5,
+        15.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#roof"
+        },
+        "south": {
+          "texture": "#roof"
+        },
+        "east": {
+          "texture": "#roof"
+        },
+        "west": {
+          "texture": "#roof"
+        },
+        "up": {
+          "texture": "#roof"
+        },
+        "down": {
+          "texture": "#roof"
+        }
+      }
+    },
+    {
+      "from": [
+        6,
+        1,
+        14.9
+      ],
+      "to": [
+        10,
+        7,
+        15.1
+      ],
+      "faces": {
+        "north": {
+          "texture": "#door"
+        },
+        "south": {
+          "texture": "#door"
+        },
+        "east": {
+          "texture": "#door"
+        },
+        "west": {
+          "texture": "#door"
+        },
+        "up": {
+          "texture": "#door"
+        },
+        "down": {
+          "texture": "#door"
+        }
+      }
+    },
+    {
+      "from": [
+        1,
+        10,
+        2
+      ],
+      "to": [
+        1.8,
+        16,
+        2.8
+      ],
+      "faces": {
+        "north": {
+          "texture": "#wood"
+        },
+        "south": {
+          "texture": "#wood"
+        },
+        "east": {
+          "texture": "#wood"
+        },
+        "west": {
+          "texture": "#wood"
+        },
+        "up": {
+          "texture": "#wood"
+        },
+        "down": {
+          "texture": "#wood"
+        }
+      }
+    },
+    {
+      "from": [
+        1.8,
+        12.5,
+        2.1
+      ],
+      "to": [
+        6.8,
+        15.8,
+        2.7
+      ],
+      "faces": {
+        "north": {
+          "texture": "#flag"
+        },
+        "south": {
+          "texture": "#flag"
+        },
+        "east": {
+          "texture": "#flag"
+        },
+        "west": {
+          "texture": "#flag"
+        },
+        "up": {
+          "texture": "#flag"
+        },
+        "down": {
+          "texture": "#flag"
+        }
+      }
+    },
+    {
+      "from": [
+        3,
+        4,
+        0.9
+      ],
+      "to": [
+        5,
+        6,
+        1.1
+      ],
+      "faces": {
+        "north": {
+          "texture": "#door"
+        },
+        "south": {
+          "texture": "#door"
+        },
+        "east": {
+          "texture": "#door"
+        },
+        "west": {
+          "texture": "#door"
+        },
+        "up": {
+          "texture": "#door"
+        },
+        "down": {
+          "texture": "#door"
+        }
+      }
+    },
+    {
+      "from": [
+        11,
+        4,
+        0.9
+      ],
+      "to": [
+        13,
+        6,
+        1.1
+      ],
+      "faces": {
+        "north": {
+          "texture": "#door"
+        },
+        "south": {
+          "texture": "#door"
+        },
+        "east": {
+          "texture": "#door"
+        },
+        "west": {
+          "texture": "#door"
+        },
+        "up": {
+          "texture": "#door"
+        },
+        "down": {
+          "texture": "#door"
+        }
+      }
+    }
+  ]
 }

@@ -31,6 +31,11 @@ minecraft {
 
         client {
             property 'forge.enabledGameTestNamespaces', 'warfront'
+            if (project.hasProperty('autoClient')) {
+                // CI: сразу заходим в готовый мир и делаем скриншоты
+                property 'warfront.autotest', 'true'
+                args '--quickPlaySingleplayer', 'ci_world', '--width', '1280', '--height', '720'
+            }
         }
 
         server {
