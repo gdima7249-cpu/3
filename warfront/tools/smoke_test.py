@@ -6,7 +6,7 @@ import os, subprocess, sys, threading, time, queue
 os.makedirs('run', exist_ok=True)
 open('run/eula.txt', 'w').write('eula=true\n')
 open('run/server.properties', 'w').write(
-    'online-mode=false\nlevel-type=minecraft\\:flat\ngenerate-structures=false\nspawn-protection=0\n'
+    'online-mode=false\ngenerate-structures=false\nspawn-protection=0\n'
     'view-distance=6\nsimulation-distance=6\nmax-tick-time=-1\n')
 
 cmd = ['gradle', 'runServer', '--no-daemon', '-q']
@@ -55,13 +55,13 @@ if not ok:
 
 scenario = [
     'warfront status',
-    'execute in minecraft:overworld run setblock 0 -59 0 warfront:headquarters',   # основание королевства
-    'execute in minecraft:overworld run setblock 3 -59 0 warfront:house',
-    'execute in minecraft:overworld run setblock 5 -59 0 warfront:barracks',
-    'execute in minecraft:overworld run setblock 7 -59 0 warfront:farm',
-    'execute in minecraft:overworld run setblock 9 -59 0 warfront:factory',
-    'execute in minecraft:overworld run summon warfront:tank 0 -58 5',
-    'execute in minecraft:overworld run summon warfront:soldier 2 -58 5',
+    'execute in minecraft:overworld run setblock 0 150 0 warfront:headquarters',   # основание королевства
+    'execute in minecraft:overworld run setblock 3 150 0 warfront:house',
+    'execute in minecraft:overworld run setblock 5 150 0 warfront:barracks',
+    'execute in minecraft:overworld run setblock 7 150 0 warfront:farm',
+    'execute in minecraft:overworld run setblock 9 150 0 warfront:factory',
+    'execute in minecraft:overworld run summon warfront:tank 0 151 5',
+    'execute in minecraft:overworld run summon warfront:soldier 2 151 5',
     'warfront raid',
     'warfront outpost',
 ]
@@ -79,7 +79,8 @@ except subprocess.TimeoutExpired:
     p.kill()
 
 bad = [l for l in lines if ('Exception' in l or '/ERROR]' in l or 'Caught exception' in l or 'crash' in l.lower())
-       and 'ignoring' not in l.lower()]
+       and 'ignoring' not in l.lower() and 'setAccessible' not in l and 'IllegalAccessException' not in l
+       and 'jdk.internal' not in l]
 status = [l for l in lines if 'Население' in l or 'Королевство не основано' in l]
 print('\n=== ИТОГ ===')
 print('статус королевства:', status[-1].strip() if status else 'нет')

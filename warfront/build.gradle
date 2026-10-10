@@ -62,3 +62,8 @@ jar.finalizedBy('reobfJar')
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
+
+// Дымовой тест подаёт команды серверу через stdin
+tasks.withType(JavaExec).configureEach {
+    standardInput = System.in
+}
