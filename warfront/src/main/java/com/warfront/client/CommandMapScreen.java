@@ -188,7 +188,7 @@ public class CommandMapScreen extends Screen {
             BuildingType t = types[i];
             int bx = px + (i % 2) * 96;
             int by = 28 + (i / 2) * (bh + 2);
-            buyButtons.add(addRenderableWidget(Button.builder(Component.literal(t.title + " " + t.price), btn ->
+            buyButtons.add(addRenderableWidget(Button.builder(Component.literal((t == BuildingType.FACTORY ? "Завод" : t.title) + " " + t.price), btn ->
                     Net.CHANNEL.sendToServer(new ActionPacket(ActionPacket.BUY, idx, 0)))
                     .bounds(bx, by, 92, bh).build()));
             buyHints.add(t.title + " - " + t.price + " железа. " + t.hint);
@@ -393,7 +393,7 @@ public class CommandMapScreen extends Screen {
         listScroll = Math.max(0, Math.min(listScroll, Math.max(0, view.buildingList.size() - rows)));
         for (int i = listScroll; i < view.buildingList.size() && i < listScroll + rows; i++) {
             KingdomView.BuildingView b = view.buildingList.get(i);
-            String cap = b.valid && b.capacity > 0 ? "  +" + b.capacity + " мест" : "";
+            String cap = b.valid && b.capacity > 0 ? "  (мест: " + b.capacity + ")" : "";
             String line = (b.valid ? "+ " : "x ") + types[b.type].title + cap;
             int color = b.valid ? 0xFF80FF80 : 0xFFFF8080;
             if (i == selectedBuilding) g.fill(x - 2, y - 1, x + 190, y + 10, 0x60FFFFFF);

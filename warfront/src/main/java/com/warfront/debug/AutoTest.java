@@ -58,7 +58,7 @@ public final class AutoTest {
                         new net.minecraft.world.item.ItemStack(com.warfront.ModItems.RIFLE.get()));
             }
             // обзор базы сверху
-            case 80 -> tp(p, 22, 170, 48, 180, 30);
+            case 80 -> tp(p, 20, 192, 14, 0, 90);
             case 160 -> shot(p, "01_base_overview");
             // витрина всех блоков мода
             case 180 -> tp(p, -1, 150.4, 0.5, 180, 12);
