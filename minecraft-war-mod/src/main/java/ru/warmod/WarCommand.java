@@ -23,7 +23,7 @@ import java.util.UUID;
 public final class WarCommand implements CommandExecutor, TabCompleter {
     private static final List<String> SUBS = List.of("help", "menu", "list", "info", "create", "join", "leave", "accept",
             "balance", "pay", "deposit", "withdraw", "members", "promote", "demote", "fire", "shop", "buy", "kit",
-            "task", "assign", "confirm", "setcapital", "solo", "top", "admin");
+            "task", "assign", "confirm", "setcapital", "solo", "top", "map", "squad", "order", "artillery", "admin");
 
     private final WarMod plugin;
     private final Random random = new Random();
@@ -67,6 +67,10 @@ public final class WarCommand implements CommandExecutor, TabCompleter {
             case "confirm" -> confirm(p, args);
             case "setcapital" -> setCapital(p);
             case "solo" -> solo(p, args);
+            case "map" -> tacticalMap(p);
+            case "squad" -> squad(p, args);
+            case "order" -> order(p, args);
+            case "artillery" -> plugin.tactics.artillery(p);
             case "top" -> top(p, args);
             case "admin" -> admin(p, args);
             default -> plugin.tell(p, "Неизвестная команда. &e/war help");
@@ -88,6 +92,11 @@ public final class WarCommand implements CommandExecutor, TabCompleter {
                 "&e/war confirm <боец> &7- подтвердить выполнение приказа",
                 "&e/war deposit|withdraw <сумма> &7- казна", "&e/war pay <игрок> <сумма> &7| &e/war balance",
                 "&e/war setcapital &7- перенести флаг (правитель)", "&e/war top [month|year|all] &7- страна месяца/года",
+                "&6--- Тактика (сержант и выше) ---",
+                "&e/war map &7- тактическая карта: ПКМ по земле = точка, ЛКМ = режим, ПКМ в воздух = отправить",
+                "&e/war squad create|add|remove|list|disband &7- отряды",
+                "&e/war order mode|add|undo|clear|target|send|cancel &7- приказы по маршруту",
+                "&e/war artillery &7- огневой налёт по последней точке (офицер+, 300$ из казны)",
                 "&7Ранги: Рядовой -> Сержант (техника, командование) -> Офицер (операции) -> Генерал (увольнение)."};
         for (String l : lines) p.sendMessage(Msg.c(l));
     }
@@ -509,6 +518,124 @@ public final class WarCommand implements CommandExecutor, TabCompleter {
         plugin.tell(p, "Найди вражеские флаги (/war list, /war info <страна>), перебей гарнизон и удержи флаг. Ждите налётов!");
     }
 
+    // ---------- тактика ----------
+
+    private void tacticalMap(Player p) {
+        if (!plugin.tactics.canUseMap(p)) {
+            plugin.tell(p, "&cТактическая карта доступна сержантам и выше.");
+            return;
+        }
+        p.getInventory().addItem(plugin.tactics.createMap(p));
+        plugin.tell(p, "Тактическая карта выдана. ПКМ по земле - точка маршрута, ЛКМ - режим, ПКМ в воздух - отправить приказ.");
+    }
+
+    private void squad(Player p, String[] args) {
+        Country c = st().countryOf(p.getUniqueId());
+        if (c == null || !c.member(p.getUniqueId()).rank.canAssignTasks()) {
+            plugin.tell(p, "&cОтряды формируют сержанты и выше.");
+            return;
+        }
+        String act = args.length > 1 ? args[1].toLowerCase(Locale.ROOT) : "list";
+        switch (act) {
+            case "create" -> {
+                if (args.length < 3 || plugin.tactics.createSquad(c, args[2], p.getUniqueId()) == null) {
+                    plugin.tell(p, "&cУкажи свободное имя: /war squad create <имя>");
+                } else {
+                    plugin.tell(p, "Отряд " + args[2] + " создан. Добавь бойцов: /war squad add " + args[2] + " <боец>");
+                }
+            }
+            case "add", "remove" -> {
+                Tactics.Squad sq = args.length > 3 ? plugin.tactics.squad(c, args[2]) : null;
+                UUID id = args.length > 3 ? findMember(c, args[3]) : null;
+                if (sq == null || id == null) {
+                    plugin.tell(p, "&cИспользование: /war squad " + act + " <отряд> <боец>");
+                } else if (act.equals("add")) {
+                    if (!c.member(p.getUniqueId()).rank.canCommand(c.member(id).rank)) {
+                        plugin.tell(p, "&cВ отряд берут только тех, кто ниже тебя званием.");
+                    } else {
+                        sq.members.add(id);
+                        plugin.tell(p, c.member(id).name + " добавлен в отряд " + sq.name + ".");
+                    }
+                } else {
+                    sq.members.remove(id);
+                    plugin.tell(p, c.member(id).name + " убран из отряда " + sq.name + ".");
+                }
+            }
+            case "disband" -> {
+                if (args.length < 3 || plugin.tactics.squad(c, args[2]) == null) {
+                    plugin.tell(p, "&cИспользование: /war squad disband <отряд>");
+                } else {
+                    plugin.tactics.disbandSquad(c, args[2]);
+                    plugin.tell(p, "Отряд распущен.");
+                }
+            }
+            default -> {
+                plugin.tell(p, "Отряды:");
+                for (Tactics.Squad sq : plugin.tactics.squadList(c)) {
+                    StringBuilder names = new StringBuilder();
+                    for (UUID id : sq.members) {
+                        Member m = c.member(id);
+                        if (m != null) names.append(m.name).append(' ');
+                    }
+                    p.sendMessage(Msg.c(" &e" + sq.name + " &7(" + sq.members.size() + "): " + names));
+                }
+            }
+        }
+    }
+
+    private void order(Player p, String[] args) {
+        Country c = st().countryOf(p.getUniqueId());
+        if (c == null) {
+            plugin.tell(p, "&cТы не в стране.");
+            return;
+        }
+        String act = args.length > 1 ? args[1].toLowerCase(Locale.ROOT) : "";
+        if (act.isEmpty()) {
+            String mine = plugin.tactics.orderOf(p.getUniqueId());
+            plugin.tell(p, mine == null ? "Приказов нет. Командиры: /war map" : "Твой приказ: &e" + mine);
+            return;
+        }
+        if (!plugin.tactics.canUseMap(p)) {
+            plugin.tell(p, "&cПриказы отдают сержанты и выше.");
+            return;
+        }
+        Tactics.Plan plan = plugin.tactics.plan(p.getUniqueId());
+        switch (act) {
+            case "mode" -> {
+                String m = args.length > 2 ? args[2].toLowerCase(Locale.ROOT) : "";
+                switch (m) {
+                    case "move", "идти", "выдвижение" -> plan.mode = Tactics.Mode.MOVE;
+                    case "attack", "атака" -> plan.mode = Tactics.Mode.ATTACK;
+                    case "defend", "оборона" -> plan.mode = Tactics.Mode.DEFEND;
+                    default -> {
+                        plugin.tell(p, "Режимы: move (выдвижение), attack (атака, офицер+), defend (оборона)");
+                        return;
+                    }
+                }
+                plugin.tell(p, "Режим: " + plan.mode.title);
+            }
+            case "add" -> plugin.tactics.addPoint(p, p.getLocation());
+            case "undo" -> {
+                if (!plan.points.isEmpty()) plan.points.remove(plan.points.size() - 1);
+                plugin.tell(p, "Точек в маршруте: " + plan.points.size());
+            }
+            case "clear" -> {
+                plan.points.clear();
+                plugin.tell(p, "Маршрут очищен.");
+            }
+            case "target" -> {
+                plan.target = args.length > 2 ? args[2] : "all";
+                plugin.tell(p, "Цель приказа: " + plan.target + " (all, имя отряда или ник бойца)");
+            }
+            case "send" -> {
+                if (args.length > 2) plan.target = args[2];
+                plugin.tactics.send(p);
+            }
+            case "cancel" -> plugin.tactics.cancel(p, args.length > 2 ? args[2] : plan.target);
+            default -> plugin.tell(p, "/war order mode|add|undo|clear|target|send|cancel");
+        }
+    }
+
     // ---------- админ ----------
 
     private boolean admin(CommandSender s, String[] args) {
@@ -597,10 +724,14 @@ public final class WarCommand implements CommandExecutor, TabCompleter {
                 case "buy" -> Shop.ITEMS.forEach(i -> out.add(i.id()));
                 case "top" -> out.addAll(List.of("month", "year", "all"));
                 case "task" -> out.addAll(List.of("new", "cancel"));
+                case "squad" -> out.addAll(List.of("create", "add", "remove", "list", "disband"));
+                case "order" -> out.addAll(List.of("mode", "add", "undo", "clear", "target", "send", "cancel"));
                 case "pay" -> Bukkit.getOnlinePlayers().forEach(pl -> out.add(pl.getName()));
                 case "admin" -> out.addAll(List.of("reload", "save", "give", "disband", "ai"));
                 default -> { }
             }
+        } else if (args.length == 3 && sub.equals("order") && args[1].equalsIgnoreCase("mode")) {
+            out.addAll(List.of("move", "attack", "defend"));
         } else if (args.length == 3 && sub.equals("kit")) {
             Shop.ITEMS.forEach(i -> out.add(i.id()));
         } else if (sub.equals("create")) {

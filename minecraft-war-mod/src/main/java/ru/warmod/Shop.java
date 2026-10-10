@@ -2,7 +2,10 @@ package ru.warmod;
 
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Boat;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Mule;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Horse;
@@ -32,7 +35,11 @@ public final class Shop {
             new Item("crossbow", "Арбалет + 16 стрел", 70, Rank.PRIVATE),
             new Item("armor_iron", "Железная броня", 140, Rank.PRIVATE),
             new Item("armor_heavy", "Тяжёлая броня (алмаз)", 450, Rank.SERGEANT),
-            new Item("tank", "Танк (бронированный конь + орудие)", 600, Rank.SERGEANT));
+            new Item("jeep", "Джип с пулемётом (быстрый разведчик)", 350, Rank.SERGEANT),
+            new Item("apc", "БТР (тяжёлый мул с грузовым отсеком)", 450, Rank.SERGEANT),
+            new Item("tank", "Танк (бронированный, орудие)", 600, Rank.SERGEANT),
+            new Item("gunboat", "Бронекатер с орудием (ставь на воду)", 500, Rank.SERGEANT),
+            new Item("glider", "Реактивный ранец (элитры + ракеты)", 400, Rank.OFFICER));
 
     private final WarMod plugin;
 
@@ -77,36 +84,80 @@ public final class Shop {
                 kit.setItemMeta(meta);
                 give(target, kit);
             }
-            case "tank" -> spawnTank(target, country);
+            case "tank", "jeep", "apc", "gunboat" -> spawnVehicle(target, country, item.id);
+            case "glider" -> {
+                give(target, named(Material.ELYTRA, "&7Реактивный ранец " + country.name));
+                give(target, new ItemStack(Material.FIREWORK_ROCKET, 16));
+            }
             default -> throw new IllegalArgumentException(item.id);
         }
     }
 
-    private void spawnTank(Player owner, Country country) {
+    private void spawnVehicle(Player owner, Country country, String type) {
         Location loc = owner.getLocation();
-        Horse h = (Horse) loc.getWorld().spawnEntity(loc, EntityType.HORSE);
-        h.setCustomName(Msg.c(Msg.code(country.color) + "Танк " + country.name));
-        h.setCustomNameVisible(true);
-        h.setAdult();
-        h.setTamed(true);
-        h.setOwner(owner);
-        h.getInventory().setSaddle(new ItemStack(Material.SADDLE));
-        h.getInventory().setArmor(new ItemStack(Material.DIAMOND_HORSE_ARMOR));
-        AttributeInstance hp = h.getAttribute(Attribute.GENERIC_MAX_HEALTH);
-        if (hp != null) {
-            hp.setBaseValue(120);
-            h.setHealth(120);
+        String label = switch (type) {
+            case "tank" -> "Танк";
+            case "jeep" -> "Джип";
+            case "apc" -> "БТР";
+            default -> "Бронекатер";
+        };
+        Entity ent;
+        switch (type) {
+            case "gunboat" -> ent = loc.getWorld().spawn(loc, Boat.class);
+            case "apc" -> {
+                Mule mule = loc.getWorld().spawn(loc, Mule.class);
+                mule.setTamed(true);
+                mule.setOwner(owner);
+                mule.getInventory().setSaddle(new ItemStack(Material.SADDLE));
+                mule.setCarryingChest(true);
+                stats(mule, 100, 0.25);
+                ent = mule;
+            }
+            default -> {
+                Horse h = loc.getWorld().spawn(loc, Horse.class);
+                h.setAdult();
+                h.setTamed(true);
+                h.setOwner(owner);
+                h.getInventory().setSaddle(new ItemStack(Material.SADDLE));
+                if (type.equals("tank")) {
+                    h.getInventory().setArmor(new ItemStack(Material.DIAMOND_HORSE_ARMOR));
+                    stats(h, 120, 0.28);
+                } else {
+                    stats(h, 40, 0.38);
+                }
+                ent = h;
+            }
         }
-        AttributeInstance speed = h.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED);
-        if (speed != null) speed.setBaseValue(0.28);
-        h.getPersistentDataContainer().set(plugin.keyTank, PersistentDataType.STRING, country.key());
+        ent.setCustomName(Msg.c(Msg.code(country.color) + label + " " + country.name));
+        ent.setCustomNameVisible(true);
+        ent.getPersistentDataContainer().set(plugin.keyTank, PersistentDataType.STRING, country.key());
+        ent.getPersistentDataContainer().set(plugin.keyVehicle, PersistentDataType.STRING, type);
 
-        ItemStack cannon = named(Material.BLAZE_ROD, "&6Орудие танка");
-        ItemMeta meta = cannon.getItemMeta();
-        meta.setLore(List.of(Msg.c("&7Сядь на танк и нажми ПКМ - выстрел."), Msg.c("&7Перезарядка 3 секунды.")));
-        meta.getPersistentDataContainer().set(plugin.keyCannon, PersistentDataType.BYTE, (byte) 1);
-        cannon.setItemMeta(meta);
-        give(owner, cannon);
+        if (type.equals("tank") || type.equals("gunboat")) {
+            ItemStack cannon = named(Material.BLAZE_ROD, "&6Орудие");
+            ItemMeta meta = cannon.getItemMeta();
+            meta.setLore(List.of(Msg.c("&7Сядь на технику и нажми ПКМ - выстрел."), Msg.c("&7Перезарядка 3 секунды.")));
+            meta.getPersistentDataContainer().set(plugin.keyCannon, PersistentDataType.BYTE, (byte) 1);
+            cannon.setItemMeta(meta);
+            give(owner, cannon);
+        } else if (type.equals("jeep")) {
+            ItemStack mg = named(Material.IRON_SHOVEL, "&6Пулемёт");
+            ItemMeta meta = mg.getItemMeta();
+            meta.setLore(List.of(Msg.c("&7Сядь в джип и зажимай ПКМ - очередь.")));
+            meta.getPersistentDataContainer().set(plugin.keyMg, PersistentDataType.BYTE, (byte) 1);
+            mg.setItemMeta(meta);
+            give(owner, mg);
+        }
+    }
+
+    private void stats(LivingEntity e, double hp, double speed) {
+        AttributeInstance max = e.getAttribute(Attribute.GENERIC_MAX_HEALTH);
+        if (max != null) {
+            max.setBaseValue(hp);
+            e.setHealth(hp);
+        }
+        AttributeInstance sp = e.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED);
+        if (sp != null) sp.setBaseValue(speed);
     }
 
     private void armor(Player p, Material helmet, Material chest, Material legs, Material boots) {

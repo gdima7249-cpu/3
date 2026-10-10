@@ -32,7 +32,8 @@ public final class WarMod extends JavaPlugin {
     public AiManager ai;
     public WebServer web;
 
-    public NamespacedKey keyCountry, keyRank, keyTank, keyMedkit, keyCannon, keyRaid;
+    public Tactics tactics;
+    public NamespacedKey keyCountry, keyRank, keyTank, keyMedkit, keyCannon, keyRaid, keyVehicle, keyMap, keyMg;
 
     /** Предложения бойцам побеждённой страны: игрок -> ключ страны-победителя. */
     public final Map<UUID, String> offers = new HashMap<>();
@@ -46,6 +47,9 @@ public final class WarMod extends JavaPlugin {
         keyMedkit = new NamespacedKey(this, "medkit");
         keyCannon = new NamespacedKey(this, "cannon");
         keyRaid = new NamespacedKey(this, "raid");
+        keyVehicle = new NamespacedKey(this, "vehicle");
+        keyMap = new NamespacedKey(this, "tacmap");
+        keyMg = new NamespacedKey(this, "mg");
 
         rules = loadRules();
         storage = new Storage(getDataFolder().toPath());
@@ -55,6 +59,7 @@ public final class WarMod extends JavaPlugin {
         tasks = new TaskManager(this);
         shop = new Shop(this);
         ai = new AiManager(this);
+        tactics = new Tactics(this);
 
         GameListener listener = new GameListener(this);
         getServer().getPluginManager().registerEvents(listener, this);
@@ -66,6 +71,7 @@ public final class WarMod extends JavaPlugin {
 
         var sch = getServer().getScheduler();
         sch.runTaskTimer(this, flags::tick, 40L, 20L);
+        sch.runTaskTimer(this, tactics::tick, 40L, 20L);
         sch.runTaskTimer(this, () -> state.recordOnline(Bukkit.getOnlinePlayers().size()), 100L, 1200L);
         sch.runTaskTimer(this, this::autosave, 6000L, 6000L);
         if (getConfig().getBoolean("ai.enabled", true)) ai.start();

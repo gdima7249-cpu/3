@@ -5,6 +5,8 @@ import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
+import org.bukkit.entity.AbstractArrow;
+import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Fireball;
 import org.bukkit.entity.LivingEntity;
@@ -25,6 +27,7 @@ import org.bukkit.event.entity.EntityMountEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.EquipmentSlot;
@@ -63,6 +66,7 @@ public final class GameListener implements Listener {
         Member m = st().memberOf(id);
         if (m != null) m.name = p.getName();
         plugin.refresh(p);
+        plugin.tactics.ensureRenderers(p);
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (!p.isOnline()) return;
             Country c = st().countryOf(id);
@@ -221,38 +225,89 @@ public final class GameListener implements Listener {
         Member m = c.member(p.getUniqueId());
         if (!m.rank.canUseTechnique()) {
             e.setCancelled(true);
-            plugin.tell(p, "Рядовым танк не доверяют. Нужно звание сержанта (заслуги " + m.merit + "/" + plugin.rules.sergeantMerit + ").");
+            plugin.tell(p, "Рядовым технику не доверяют. Нужно звание сержанта (заслуги " + m.merit + "/" + plugin.rules.sergeantMerit + ").");
+        }
+    }
+
+    private final Map<UUID, Long> mgCooldown = new HashMap<>();
+
+    private static String vehicleType(Entity veh, WarMod plugin) {
+        return veh == null ? null : veh.getPersistentDataContainer().get(plugin.keyVehicle, PersistentDataType.STRING);
+    }
+
+    @EventHandler
+    public void onWeapon(PlayerInteractEvent e) {
+        if (e.getHand() != EquipmentSlot.HAND) return;
+        Action act = e.getAction();
+        if (act != Action.RIGHT_CLICK_AIR && act != Action.RIGHT_CLICK_BLOCK) return;
+        ItemStack it = e.getItem();
+        if (it == null || !it.hasItemMeta()) return;
+        var pdc = it.getItemMeta().getPersistentDataContainer();
+        Player p = e.getPlayer();
+        long now = System.currentTimeMillis();
+
+        if (pdc.has(plugin.keyCannon, PersistentDataType.BYTE)) {
+            e.setCancelled(true);
+            String type = vehicleType(p.getVehicle(), plugin);
+            if (!"tank".equals(type) && !"gunboat".equals(type)) {
+                plugin.tell(p, "Орудие стреляет только с танка или бронекатера.");
+                return;
+            }
+            if (now - cannonCooldown.getOrDefault(p.getUniqueId(), 0L) < 3000) {
+                p.sendActionBar(Msg.c("&7Перезарядка..."));
+                return;
+            }
+            cannonCooldown.put(p.getUniqueId(), now);
+            Location eye = p.getEyeLocation();
+            Vector dir = eye.getDirection();
+            Fireball shell = p.getWorld().spawn(eye.add(dir.clone().multiply(2.5)), Fireball.class);
+            shell.setShooter(p);
+            shell.setDirection(dir);
+            shell.setYield(2.5f);
+            shell.setIsIncendiary(false);
+            p.getWorld().playSound(p.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 1f, 1.5f);
+        } else if (pdc.has(plugin.keyMg, PersistentDataType.BYTE)) {
+            e.setCancelled(true);
+            if (!"jeep".equals(vehicleType(p.getVehicle(), plugin))) {
+                plugin.tell(p, "Пулемёт стреляет только из джипа.");
+                return;
+            }
+            if (now - mgCooldown.getOrDefault(p.getUniqueId(), 0L) < 200) return;
+            mgCooldown.put(p.getUniqueId(), now);
+            Arrow bullet = p.launchProjectile(Arrow.class, p.getEyeLocation().getDirection().multiply(3.0));
+            bullet.setDamage(5.0);
+            bullet.setPickupStatus(AbstractArrow.PickupStatus.DISALLOWED);
+            p.getWorld().playSound(p.getLocation(), Sound.ENTITY_ARROW_SHOOT, 0.7f, 1.8f);
+        }
+    }
+
+    // ---------- тактическая карта ----------
+
+    @EventHandler
+    public void onTacticalMap(PlayerInteractEvent e) {
+        if (e.getHand() != EquipmentSlot.HAND || !plugin.tactics.isMap(e.getItem())) return;
+        Player p = e.getPlayer();
+        e.setCancelled(true);
+        plugin.tactics.ensureRenderer(e.getItem());
+        if (!plugin.tactics.canUseMap(p)) {
+            plugin.tell(p, "Тактическая карта доступна сержантам и выше.");
+            return;
+        }
+        Action act = e.getAction();
+        if (act == Action.LEFT_CLICK_AIR || act == Action.LEFT_CLICK_BLOCK) {
+            plugin.tactics.cycleMode(p);
+        } else if (p.isSneaking()) {
+            plugin.tactics.recenter(p, e.getItem());
+        } else if (act == Action.RIGHT_CLICK_BLOCK && e.getClickedBlock() != null) {
+            plugin.tactics.addPoint(p, e.getClickedBlock().getLocation().add(0.5, 1, 0.5));
+        } else if (act == Action.RIGHT_CLICK_AIR) {
+            plugin.tactics.send(p);
         }
     }
 
     @EventHandler
-    public void onCannon(PlayerInteractEvent e) {
-        if (e.getHand() != EquipmentSlot.HAND) return;
-        if (e.getAction() != Action.RIGHT_CLICK_AIR && e.getAction() != Action.RIGHT_CLICK_BLOCK) return;
-        ItemStack it = e.getItem();
-        if (it == null || !it.hasItemMeta()
-                || !it.getItemMeta().getPersistentDataContainer().has(plugin.keyCannon, PersistentDataType.BYTE)) return;
-        e.setCancelled(true);
-        Player p = e.getPlayer();
-        Entity veh = p.getVehicle();
-        if (veh == null || !veh.getPersistentDataContainer().has(plugin.keyTank, PersistentDataType.STRING)) {
-            plugin.tell(p, "Орудие стреляет только с танка.");
-            return;
-        }
-        long now = System.currentTimeMillis();
-        if (now - cannonCooldown.getOrDefault(p.getUniqueId(), 0L) < 3000) {
-            p.sendActionBar(Msg.c("&7Перезарядка..."));
-            return;
-        }
-        cannonCooldown.put(p.getUniqueId(), now);
-        Location eye = p.getEyeLocation();
-        Vector dir = eye.getDirection();
-        Fireball shell = p.getWorld().spawn(eye.add(dir.clone().multiply(2.5)), Fireball.class);
-        shell.setShooter(p);
-        shell.setDirection(dir);
-        shell.setYield(2.5f);
-        shell.setIsIncendiary(false);
-        p.getWorld().playSound(p.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 1f, 1.5f);
+    public void onHeld(PlayerItemHeldEvent e) {
+        plugin.tactics.ensureRenderer(e.getPlayer().getInventory().getItem(e.getNewSlot()));
     }
 
     // ---------- госпиталь ----------
