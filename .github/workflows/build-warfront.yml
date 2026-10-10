@@ -1,0 +1,28 @@
+name: Build Warfront
+
+on:
+  push:
+    paths: ['warfront/**', '.github/workflows/build-warfront.yml']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: warfront
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.1.1'
+      - name: Сборка мода
+        run: gradle build --no-daemon --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Warfront-jar
+          path: warfront/build/libs/warfront-*.jar

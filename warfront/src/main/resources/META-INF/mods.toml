@@ -1,0 +1,26 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="MIT"
+
+[[mods]]
+modId="warfront"
+version="${file.jarVersion}"
+displayName="Warfront - Фронт"
+description='''
+Соло-стратегия в Minecraft. Ты генерал: растёт население, строишь дома и казармы,
+командуешь отрядами и танками по карте, освобождаешь вражеские форпосты.
+'''
+
+[[dependencies.warfront]]
+modId="forge"
+mandatory=true
+versionRange="[47,)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.warfront]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1,1.21)"
+ordering="NONE"
+side="BOTH"
