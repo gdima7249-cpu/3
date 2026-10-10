@@ -59,7 +59,7 @@ public class CommandMapScreen extends Screen {
     private int listScroll;
     private int selectedBuilding = -1;
     // раскладка правой панели (зависит от высоты экрана)
-    private int row, lyStats, lySquadLbl, lySquad, lyOrderLbl, lyOrder, lyInfo, lyRecruit, lyTank, lyList;
+    private int bh, lySquadLbl, lySquad, lyOrderLbl, lyOrder, lyInfo, lyRecruit, lyTank, lyList, lyKit;
     private final List<Button> squadButtons = new ArrayList<>();
     private final List<Button> orderButtons = new ArrayList<>();
     private final List<Button> buyButtons = new ArrayList<>();
@@ -110,36 +110,36 @@ public class CommandMapScreen extends Screen {
             Button b = Button.builder(Component.literal(t == tab ? "[" + t.title + "]" : t.title), btn -> {
                 tab = t;
                 rebuildWidgets();
-            }).bounds(px + i * 62, 6, 60, 18).build();
+            }).bounds(px + i * 62, 5, 60, bh).build();
             addRenderableWidget(b);
         }
 
-        int bottom = height - 26;
+        layout();
+        int bottom = height - bh - 6;
         addRenderableWidget(Button.builder(Component.literal("К штабу"), btn -> {
             centerX = view.hq.getX();
             centerZ = view.hq.getZ();
             dirty = true;
-        }).bounds(px, bottom, 88, 18).build());
+        }).bounds(px, bottom, 88, bh).build());
         addRenderableWidget(Button.builder(Component.literal("Закрыть"), btn -> onClose())
-                .bounds(px + 94, bottom, 94, 18).build());
+                .bounds(px + 94, bottom, 94, bh).build());
 
         if (tab == Tab.ARMY) buildArmy(px);
         else if (tab == Tab.BUILD) buildShop(px);
     }
 
+    /** Раскладка рассчитана на малую высоту экрана (около 240 пикселей интерфейса). */
     private void layout() {
-        boolean roomy = height >= 330;
-        row = roomy ? 16 : 12;
-        lyStats = 44;
-        int y = lyStats + 6 * row + 6;
-        lySquadLbl = y;
-        lySquad = y + 10;
-        lyOrderLbl = lySquad + 24;
+        bh = height < 300 ? 16 : 18;
+        lySquadLbl = 76;
+        lySquad = lySquadLbl + 10;
+        lyOrderLbl = lySquad + bh + 4;
         lyOrder = lyOrderLbl + 10;
-        lyInfo = lyOrder + 24;
-        lyRecruit = lyInfo + (roomy ? 36 : 25);
-        lyTank = lyRecruit + 22;
-        lyList = 126;
+        lyInfo = lyOrder + bh + 6;
+        lyRecruit = lyInfo + 25;
+        lyTank = lyRecruit + bh + 3;
+        lyKit = 28 + 3 * (bh + 2);
+        lyList = lyKit + bh + 16;
     }
 
     private void buildArmy(int px) {
@@ -149,24 +149,24 @@ public class CommandMapScreen extends Screen {
             squadButtons.add(addRenderableWidget(Button.builder(Component.literal(String.valueOf(i)), btn -> {
                 squad = sq;
                 rebuildWidgets();
-            }).bounds(px + (i - 1) * 38, lySquad, 36, 18).build()));
+            }).bounds(px + (i - 1) * 38, lySquad, 36, bh).build()));
         }
         for (int t = 1; t <= 3; t++) {
             final int type = t;
             orderButtons.add(addRenderableWidget(Button.builder(Component.literal(ORDER_NAMES[t]), btn -> {
                 orderType = type;
                 rebuildWidgets();
-            }).bounds(px + (t - 1) * 63, lyOrder, 61, 18).build()));
+            }).bounds(px + (t - 1) * 63, lyOrder, 61, bh).build()));
         }
         addRenderableWidget(Button.builder(Component.literal("+1 боец"), btn ->
                 Net.CHANNEL.sendToServer(new ActionPacket(ActionPacket.RECRUIT, squad, 1)))
-                .bounds(px, lyRecruit, 92, 18).build());
+                .bounds(px, lyRecruit, 92, bh).build());
         addRenderableWidget(Button.builder(Component.literal("+5 бойцов"), btn ->
                 Net.CHANNEL.sendToServer(new ActionPacket(ActionPacket.RECRUIT, squad, 5)))
-                .bounds(px + 96, lyRecruit, 92, 18).build());
+                .bounds(px + 96, lyRecruit, 92, bh).build());
         addRenderableWidget(Button.builder(Component.literal("Построить танк"), btn ->
                 Net.CHANNEL.sendToServer(new ActionPacket(ActionPacket.BUILD_TANK, squad, 0)))
-                .bounds(px, lyTank, 188, 18).build());
+                .bounds(px, lyTank, 188, bh).build());
         updateLabels();
     }
 
@@ -187,15 +187,15 @@ public class CommandMapScreen extends Screen {
             final int idx = i;
             BuildingType t = types[i];
             int bx = px + (i % 2) * 96;
-            int by = 30 + (i / 2) * 22;
+            int by = 28 + (i / 2) * (bh + 2);
             buyButtons.add(addRenderableWidget(Button.builder(Component.literal(t.title + " " + t.price), btn ->
                     Net.CHANNEL.sendToServer(new ActionPacket(ActionPacket.BUY, idx, 0)))
-                    .bounds(bx, by, 92, 20).build()));
+                    .bounds(bx, by, 92, bh).build()));
             buyHints.add(t.title + " - " + t.price + " железа. " + t.hint);
         }
         buyButtons.add(addRenderableWidget(Button.builder(Component.literal("Набор мебели  10"), btn ->
                 Net.CHANNEL.sendToServer(new ActionPacket(ActionPacket.BUY, types.length, 0)))
-                .bounds(px, 30 + 3 * 22, 188, 20).build()));
+                .bounds(px, lyKit, 188, bh).build()));
         buyHints.add("Набор мебели - 10 железа: 2 кровати, дверь, 4 факела");
     }
 
@@ -359,44 +359,36 @@ public class CommandMapScreen extends Screen {
             case BUILD -> renderBuild(g, x);
             case LOG -> renderLog(g, x);
         }
-        g.drawString(font, "ПКМ/СКМ - двигать, колесо - масштаб (" + scale() + " бл/пикс)", x, height - 40, 0xFF707070);
+        if (height >= 300) g.drawString(font, "ПКМ - двигать, колесо - масштаб", x, height - bh - 20, 0xFF707070);
     }
 
-    private void stat(GuiGraphics g, int x, int y, ItemStack icon, String label, String value, int color) {
-        g.renderItem(icon, x, y - 4);
-        g.drawString(font, label, x + 20, y, 0xFFB0B0B0);
-        g.drawString(font, value, x + 108, y, color);
+    private void pair(GuiGraphics g, int x, int y, String l1, String v1, int c1, String l2, String v2, int c2) {
+        g.drawString(font, l1, x, y, 0xFFB0B0B0);
+        g.drawString(font, v1, x + 62, y, c1);
+        g.drawString(font, l2, x + 100, y, 0xFFB0B0B0);
+        g.drawString(font, v2, x + 160, y, c2);
     }
 
     private void renderArmy(GuiGraphics g, int x) {
         layout();
-        g.drawString(font, "День " + view.day + "  |  налётов " + view.raids + ", освобождено " + view.freed, x, 31, 0xFFFFD84A);
-        int y = lyStats;
-        stat(g, x, y, new ItemStack(Items.RED_BED), "Население", view.pop + " / " + view.cap, view.pop >= view.cap ? 0xFFFF9090 : 0xFFFFFFFF);
-        y += row;
-        stat(g, x, y, new ItemStack(Items.BREAD), "Еда", String.valueOf(view.food), view.food < 20 ? 0xFFFF6060 : 0xFFFFFFFF);
-        y += row;
-        stat(g, x, y, new ItemStack(Items.IRON_INGOT), "Железо", String.valueOf(view.iron), 0xFFFFFFFF);
-        y += row;
-        stat(g, x, y, new ItemStack(Items.GUNPOWDER), "Боеприпасы", String.valueOf(view.ammo), 0xFFFFFFFF);
-        y += row;
-        stat(g, x, y, new ItemStack(Items.IRON_HELMET), "Солдаты", view.soldiers + " / " + view.soldierCap, 0xFFFFFFFF);
-        y += row;
-        stat(g, x, y, new ItemStack(Items.IRON_BLOCK), "Танки", view.tanks + " / " + view.tankCap, 0xFFFFFFFF);
+        g.drawString(font, "День " + view.day + "  |  налётов " + view.raids + ", освобождено " + view.freed, x, 28, 0xFFFFD84A);
+        pair(g, x, 40, "Население", view.pop + "/" + view.cap, view.pop >= view.cap ? 0xFFFF9090 : 0xFFFFFFFF,
+                "Еда", String.valueOf(view.food), view.food < 20 ? 0xFFFF6060 : 0xFFFFFFFF);
+        pair(g, x, 51, "Железо", String.valueOf(view.iron), 0xFFFFFFFF, "Патроны", String.valueOf(view.ammo), 0xFFFFFFFF);
+        pair(g, x, 62, "Солдаты", view.soldiers + "/" + view.soldierCap, 0xFFFFFFFF, "Танки", view.tanks + "/" + view.tankCap, 0xFFFFFFFF);
         g.drawString(font, "Отряд (клавиши 1-5):", x, lySquadLbl, 0xFFB0B0B0);
         g.drawString(font, "Приказ по клику на карту:", x, lyOrderLbl, 0xFFB0B0B0);
         g.drawString(font, "Отряд " + squad + ": солдат " + view.squadSoldiers[squad] + ", танков " + view.squadTanks[squad], x, lyInfo, 0xFFFFFFFF);
         int ord = view.squadOrder[squad];
         g.drawString(font, "Приказ: " + (ord == 0 ? "нет" : ORDER_NAMES[ord]), x, lyInfo + 11, 0xFFE0E0A0);
-        if (height >= 330) g.drawString(font, "Наём: 1 чел., 5 железа, 5 боеприпасов", x, lyInfo + 22, 0xFF808080);
     }
 
     private void renderBuild(GuiGraphics g, int x) {
         layout();
         BuildingType[] types = BuildingType.values();
-        g.drawString(font, "Твои здания (клик - на карту):", x, lyList - 12, 0xFFB0B0B0);
+        g.drawString(font, "Твои здания (клик - на карту):", x, lyList - 11, 0xFFB0B0B0);
         int y = lyList;
-        int bottom = height - 84;
+        int bottom = height - bh - 6 - 34;
         int rows = Math.max(1, (bottom - y) / 11);
         listScroll = Math.max(0, Math.min(listScroll, Math.max(0, view.buildingList.size() - rows)));
         for (int i = listScroll; i < view.buildingList.size() && i < listScroll + rows; i++) {
@@ -411,8 +403,8 @@ public class CommandMapScreen extends Screen {
         if (view.buildingList.isEmpty()) g.drawString(font, "Пока нет. Построй комнату, поставь знак.", x, y, 0xFF808080);
         if (selectedBuilding >= 0 && selectedBuilding < view.buildingList.size()) {
             KingdomView.BuildingView b = view.buildingList.get(selectedBuilding);
-            int dy = height - 78;
-            g.fill(x - 4, dy - 3, panelX() + PANEL - 4, height - 44, 0x80000000);
+            int dy = height - bh - 6 - 32;
+            g.fill(x - 4, dy - 2, panelX() + PANEL - 4, height - bh - 9, 0x80000000);
             int i = 0;
             for (FormattedCharSequence l : font.split(Component.literal(b.text), 190)) {
                 if (i++ >= 3) break;

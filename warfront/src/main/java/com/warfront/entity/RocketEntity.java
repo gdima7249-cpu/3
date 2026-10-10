@@ -32,7 +32,13 @@ public class RocketEntity extends BulletEntity {
     @Override
     protected void onHit(HitResult hit) {
         if (level().isClientSide) return;
-        level().explode(this, getX(), getY(), getZ(), power, Level.ExplosionInteraction.MOB);
+        Level.ExplosionInteraction mode = Level.ExplosionInteraction.MOB;
+        if (level().getServer() != null && !(getOwner() instanceof SoldierEntity s && s.isEnemy())) {
+            com.warfront.kingdom.KingdomData d = com.warfront.kingdom.KingdomData.get(level().getServer());
+            // своя артиллерия не рушит базу: на территории королевства взрыв только бьёт по врагам
+            if (d.founded && d.inTerritory(blockPosition())) mode = Level.ExplosionInteraction.NONE;
+        }
+        level().explode(this, getX(), getY(), getZ(), power, mode);
         discard();
     }
 }

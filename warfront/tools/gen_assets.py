@@ -207,8 +207,8 @@ GUN_TEX = {"dark": "warfront:item/gun_dark", "metal": "warfront:item/gun_metal",
 
 # Оружие моделируется вдоль оси Z: дуло в z=0, приклад в z=16. Руки держат за центр.
 GUN_DISPLAY = {
-    "thirdperson_righthand": {"rotation": [0, 0, 0], "translation": [0, 2.5, -2.5], "scale": [0.9, 0.9, 0.9]},
-    "thirdperson_lefthand": {"rotation": [0, 0, 0], "translation": [0, 2.5, -2.5], "scale": [0.9, 0.9, 0.9]},
+    "thirdperson_righthand": {"rotation": [90, 0, 0], "translation": [0, 3, 1], "scale": [0.85, 0.85, 0.85]},
+    "thirdperson_lefthand": {"rotation": [90, 0, 0], "translation": [0, 3, 1], "scale": [0.85, 0.85, 0.85]},
     "firstperson_righthand": {"rotation": [0, -4, 0], "translation": [2.2, -1.6, -3], "scale": [0.85, 0.85, 0.85]},
     "firstperson_lefthand": {"rotation": [0, 4, 0], "translation": [-2.2, -1.6, -3], "scale": [0.85, 0.85, 0.85]},
     "gui": {"rotation": [20, -128, 0], "translation": [0, 0, 0], "scale": [0.95, 0.95, 0.95]},

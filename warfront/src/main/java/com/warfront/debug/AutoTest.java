@@ -58,7 +58,7 @@ public final class AutoTest {
                         new net.minecraft.world.item.ItemStack(com.warfront.ModItems.RIFLE.get()));
             }
             // обзор базы сверху
-            case 80 -> tp(p, 22, 176, 66, 180, 33);
+            case 80 -> tp(p, 22, 170, 48, 180, 30);
             case 160 -> shot(p, "01_base_overview");
             // витрина всех блоков мода
             case 180 -> tp(p, -1, 150.4, 0.5, 180, 12);
@@ -76,7 +76,7 @@ public final class AutoTest {
             case 540 -> tp(p, 25.5, 150.2, 24.5, 135, 18);
             case 610 -> shot(p, "06_house_inside");
             // казарма
-            case 630 -> tp(p, 35.5, 152.5, -9, 0, 24);
+            case 630 -> tp(p, 35.5, 151.5, -8, 0, 6);
             case 700 -> shot(p, "07_barracks");
             // ферма
             case 720 -> tp(p, 16.5, 152.5, -14, 0, 28);

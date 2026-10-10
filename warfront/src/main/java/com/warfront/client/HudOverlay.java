@@ -55,7 +55,7 @@ public class HudOverlay implements IGuiOverlay {
         ClientState.NOTES.removeIf(n -> n.expires < now);
         int w = 210;
         int x = width - w - 6;
-        int y = 6;
+        int y = 30;
         for (ClientState.Note n : ClientState.NOTES) {
             java.util.List<net.minecraft.util.FormattedCharSequence> lines =
                     font.split(net.minecraft.network.chat.Component.literal(n.text), w - 10);
