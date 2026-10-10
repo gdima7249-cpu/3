@@ -60,6 +60,7 @@ public final class WarMod extends JavaPlugin {
         shop = new Shop(this);
         ai = new AiManager(this);
         tactics = new Tactics(this);
+        tactics.load(storage.loadJson("tactics.json", Tactics.Data.class));
 
         GameListener listener = new GameListener(this);
         getServer().getPluginManager().registerEvents(listener, this);
@@ -73,7 +74,7 @@ public final class WarMod extends JavaPlugin {
         sch.runTaskTimer(this, flags::tick, 40L, 20L);
         sch.runTaskTimer(this, tactics::tick, 40L, 20L);
         sch.runTaskTimer(this, () -> state.recordOnline(Bukkit.getOnlinePlayers().size()), 100L, 1200L);
-        sch.runTaskTimer(this, this::autosave, 6000L, 6000L);
+        sch.runTaskTimer(this, this::autosave, 2400L, 2400L);
         if (getConfig().getBoolean("ai.enabled", true)) ai.start();
 
         if (getConfig().getBoolean("web.enabled", false)) {
@@ -95,6 +96,7 @@ public final class WarMod extends JavaPlugin {
     public void autosave() {
         try {
             storage.save(state);
+            if (tactics != null) storage.saveJson("tactics.json", tactics.export());
         } catch (IOException e) {
             getLogger().severe("Не удалось сохранить данные: " + e.getMessage());
         }

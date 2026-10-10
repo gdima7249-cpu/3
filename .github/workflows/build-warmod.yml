@@ -1,0 +1,31 @@
+name: Build WarMod
+
+on:
+  push:
+    paths: ['minecraft-war-mod/**']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: minecraft-war-mod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Тесты игровой логики
+        run: |
+          mkdir -p /tmp/out
+          javac -encoding UTF-8 -d /tmp/out src/main/java/ru/warmod/core/*.java src/test/java/ru/warmod/core/*.java
+          java -cp /tmp/out ru.warmod.core.CoreSelfTest
+      - name: Сборка плагина
+        run: mvn -B package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WarMod-jar
+          path: minecraft-war-mod/target/WarMod-*.jar

@@ -36,6 +36,24 @@ public final class Storage {
         return s;
     }
 
+    public <T> T loadJson(String name, Class<T> type) {
+        Path f = file.resolveSibling(name);
+        if (!Files.exists(f)) return null;
+        try (Reader r = Files.newBufferedReader(f, StandardCharsets.UTF_8)) {
+            return gson.fromJson(r, type);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public synchronized void saveJson(String name, Object data) throws IOException {
+        Path tmp = file.resolveSibling(name + ".tmp");
+        try (Writer w = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8)) {
+            gson.toJson(data, w);
+        }
+        Files.move(tmp, file.resolveSibling(name), StandardCopyOption.REPLACE_EXISTING);
+    }
+
     public synchronized void save(WarState s) throws IOException {
         Files.createDirectories(file.getParent());
         Path tmp = file.resolveSibling("data.json.tmp");

@@ -376,4 +376,133 @@ public final class Tactics {
             plugin.refresh(p);
         }
     }
+
+    // ---------- сохранение ----------
+
+    /** Плоские данные для JSON: отряды, маршруты командиров и действующие приказы. */
+    public static final class Data {
+        public Map<String, List<SquadDto>> squads = new HashMap<>();
+        public Map<UUID, PlanDto> plans = new HashMap<>();
+        public Map<UUID, ActiveDto> active = new HashMap<>();
+    }
+
+    public static final class SquadDto {
+        public String name;
+        public UUID owner;
+        public List<UUID> members = new ArrayList<>();
+    }
+
+    public static final class PointDto {
+        public String world;
+        public double x, y, z;
+    }
+
+    public static final class PlanDto {
+        public String mode, target;
+        public List<PointDto> points = new ArrayList<>();
+    }
+
+    public static final class ActiveDto {
+        public String mode, issuer;
+        public UUID issuerId;
+        public int index;
+        public List<PointDto> points = new ArrayList<>();
+    }
+
+    private static PointDto dto(Location l) {
+        PointDto d = new PointDto();
+        d.world = l.getWorld().getName();
+        d.x = l.getX();
+        d.y = l.getY();
+        d.z = l.getZ();
+        return d;
+    }
+
+    private static List<Location> locations(List<PointDto> list) {
+        List<Location> out = new ArrayList<>();
+        for (PointDto d : list) {
+            World w = Bukkit.getWorld(d.world);
+            if (w != null) out.add(new Location(w, d.x, d.y, d.z));
+        }
+        return out;
+    }
+
+    private static Mode mode(String s) {
+        try {
+            return Mode.valueOf(s);
+        } catch (Exception e) {
+            return Mode.MOVE;
+        }
+    }
+
+    public Data export() {
+        Data d = new Data();
+        for (Map.Entry<String, Map<String, Squad>> en : squads.entrySet()) {
+            List<SquadDto> list = new ArrayList<>();
+            for (Squad sq : en.getValue().values()) {
+                SquadDto sd = new SquadDto();
+                sd.name = sq.name;
+                sd.owner = sq.owner;
+                sd.members.addAll(sq.members);
+                list.add(sd);
+            }
+            d.squads.put(en.getKey(), list);
+        }
+        for (Map.Entry<UUID, Plan> en : plans.entrySet()) {
+            PlanDto pd = new PlanDto();
+            pd.mode = en.getValue().mode.name();
+            pd.target = en.getValue().target;
+            for (Location l : en.getValue().points) pd.points.add(dto(l));
+            d.plans.put(en.getKey(), pd);
+        }
+        for (Map.Entry<UUID, Active> en : active.entrySet()) {
+            Active a = en.getValue();
+            ActiveDto ad = new ActiveDto();
+            ad.mode = a.mode.name();
+            ad.issuer = a.issuer;
+            ad.issuerId = a.issuerId;
+            ad.index = a.index;
+            for (Location l : a.points) ad.points.add(dto(l));
+            d.active.put(en.getKey(), ad);
+        }
+        return d;
+    }
+
+    public void load(Data d) {
+        if (d == null) return;
+        squads.clear();
+        plans.clear();
+        active.clear();
+        if (d.squads != null) {
+            for (Map.Entry<String, List<SquadDto>> en : d.squads.entrySet()) {
+                Map<String, Squad> m = new LinkedHashMap<>();
+                for (SquadDto sd : en.getValue()) {
+                    Squad sq = new Squad(sd.name, sd.owner);
+                    sq.members.addAll(sd.members);
+                    m.put(sd.name.toLowerCase(Locale.ROOT), sq);
+                }
+                squads.put(en.getKey(), m);
+            }
+        }
+        if (d.plans != null) {
+            for (Map.Entry<UUID, PlanDto> en : d.plans.entrySet()) {
+                Plan p = new Plan();
+                p.mode = mode(en.getValue().mode);
+                p.target = en.getValue().target == null ? "all" : en.getValue().target;
+                p.points.addAll(locations(en.getValue().points));
+                plans.put(en.getKey(), p);
+            }
+        }
+        if (d.active != null) {
+            for (Map.Entry<UUID, ActiveDto> en : d.active.entrySet()) {
+                Active a = new Active();
+                a.mode = mode(en.getValue().mode);
+                a.issuer = en.getValue().issuer;
+                a.issuerId = en.getValue().issuerId;
+                a.points = locations(en.getValue().points);
+                a.index = Math.max(0, Math.min(en.getValue().index, Math.max(0, a.points.size() - 1)));
+                if (!a.points.isEmpty()) active.put(en.getKey(), a);
+            }
+        }
+    }
 }
