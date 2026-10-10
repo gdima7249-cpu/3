@@ -97,6 +97,7 @@ public class CommandMapScreen extends Screen {
             centerZ = view.hq.getZ();
             centered = true;
         }
+        layout();
         ensureTexture();
         squadButtons.clear();
         orderButtons.clear();
@@ -114,7 +115,6 @@ public class CommandMapScreen extends Screen {
             addRenderableWidget(b);
         }
 
-        layout();
         int bottom = height - bh - 6;
         addRenderableWidget(Button.builder(Component.literal("К штабу"), btn -> {
             centerX = view.hq.getX();
