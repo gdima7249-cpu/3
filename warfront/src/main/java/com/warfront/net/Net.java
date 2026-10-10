@@ -22,6 +22,8 @@ public final class Net {
         CHANNEL.registerMessage(id++, SyncPacket.class, SyncPacket::encode, SyncPacket::decode, SyncPacket::handle);
         CHANNEL.registerMessage(id++, OrderPacket.class, OrderPacket::encode, OrderPacket::decode, OrderPacket::handle);
         CHANNEL.registerMessage(id++, ActionPacket.class, ActionPacket::encode, ActionPacket::decode, ActionPacket::handle);
+        CHANNEL.registerMessage(id++, NotifyPacket.class, NotifyPacket::encode, NotifyPacket::decode, NotifyPacket::handle);
+        CHANNEL.registerMessage(id++, HudPacket.class, HudPacket::encode, HudPacket::decode, HudPacket::handle);
     }
 
     /** Отправить игроку снимок королевства; open=true открывает экран карты. */

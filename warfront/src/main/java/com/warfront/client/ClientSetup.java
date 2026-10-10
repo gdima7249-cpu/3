@@ -6,6 +6,7 @@ import com.warfront.Warfront;
 import net.minecraft.client.KeyMapping;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
+import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -29,6 +30,11 @@ public final class ClientSetup {
     @SubscribeEvent
     public static void layers(EntityRenderersEvent.RegisterLayerDefinitions event) {
         event.registerLayerDefinition(TankModel.LAYER, TankModel::createLayer);
+    }
+
+    @SubscribeEvent
+    public static void overlays(RegisterGuiOverlaysEvent event) {
+        event.registerAboveAll("warfront_hud", new HudOverlay());
     }
 
     @SubscribeEvent

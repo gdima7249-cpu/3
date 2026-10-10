@@ -30,6 +30,16 @@ public class KingdomData extends SavedData {
         }
     }
 
+    public static final int TERRITORY_RADIUS = 64;
+
+    /** Построенное здание и результат проверки его комнаты. */
+    public static final class Building {
+        public BuildingType type;
+        public boolean valid;
+        public int area, beds, capacity;
+        public String text = "";
+    }
+
     public boolean founded;
     public BlockPos hq = BlockPos.ZERO;
     public int pop;
@@ -38,7 +48,8 @@ public class KingdomData extends SavedData {
     public long nextRaid;
     public int raidsSurvived;
     public int capturedOutposts;
-    public final Map<Long, BuildingType> buildings = new LinkedHashMap<>();
+    public final Map<Long, Building> buildings = new LinkedHashMap<>();
+    public final List<String> log = new ArrayList<>();
     public final List<Outpost> outposts = new ArrayList<>();
     /** Текущий приказ каждого отряда (индекс 1..5): тип и цель. */
     public final int[] squadOrder = new int[SQUADS + 1];
@@ -48,25 +59,44 @@ public class KingdomData extends SavedData {
         return server.overworld().getDataStorage().computeIfAbsent(KingdomData::load, KingdomData::new, NAME);
     }
 
+    /** Сколько рабочих (прошедших проверку) зданий данного типа. */
     public int count(BuildingType t) {
         int n = 0;
-        for (BuildingType b : buildings.values()) if (b == t) n++;
+        for (Building b : buildings.values()) if (b.valid && b.type == t) n++;
         return n;
     }
 
-    /** Вместимость жилья: штаб + дома + казармы + освобождённые форпосты. */
+    /** Вместимость жилья: места в кроватях рабочих домов и казарм, плюс палатки штаба и освобождённые форпосты. */
     public int capacity() {
-        int cap = 6 + capturedOutposts * 10;
-        for (BuildingType b : buildings.values()) cap += b.housing;
+        int cap = 4 + capturedOutposts * 10;
+        for (Building b : buildings.values()) if (b.valid) cap += b.capacity;
         return cap;
     }
 
     public int soldierCap() {
-        return 8 + count(BuildingType.BARRACKS) * 10;
+        int cap = 4;
+        for (Building b : buildings.values()) if (b.valid && b.type == BuildingType.BARRACKS) cap += b.capacity;
+        return cap;
     }
 
     public int tankCap() {
         return count(BuildingType.FACTORY) * 2;
+    }
+
+    public boolean inTerritory(BlockPos p) {
+        if (horizontal(p, hq) <= TERRITORY_RADIUS) return true;
+        for (Outpost o : outposts) if (o.captured && horizontal(p, o.pos) <= TERRITORY_RADIUS * 3 / 4) return true;
+        return false;
+    }
+
+    private static double horizontal(BlockPos a, BlockPos b) {
+        double dx = a.getX() - b.getX(), dz = a.getZ() - b.getZ();
+        return Math.sqrt(dx * dx + dz * dz);
+    }
+
+    public void addLog(String line) {
+        log.add(line);
+        while (log.size() > 40) log.remove(0);
     }
 
     public int uncapturedOutposts() {
@@ -88,12 +118,21 @@ public class KingdomData extends SavedData {
         tag.putInt("raids", raidsSurvived);
         tag.putInt("captured", capturedOutposts);
         ListTag bl = new ListTag();
-        for (Map.Entry<Long, BuildingType> e : buildings.entrySet()) {
+        for (Map.Entry<Long, Building> e : buildings.entrySet()) {
             CompoundTag c = new CompoundTag();
+            Building b = e.getValue();
             c.putLong("p", e.getKey());
-            c.putInt("t", e.getValue().ordinal());
+            c.putInt("t", b.type.ordinal());
+            c.putBoolean("v", b.valid);
+            c.putInt("a", b.area);
+            c.putInt("b", b.beds);
+            c.putInt("c", b.capacity);
+            c.putString("x", b.text);
             bl.add(c);
         }
+        ListTag logs = new ListTag();
+        for (String l : log) logs.add(net.minecraft.nbt.StringTag.valueOf(l));
+        tag.put("log", logs);
         tag.put("buildings", bl);
         ListTag ol = new ListTag();
         for (Outpost o : outposts) {
@@ -128,8 +167,18 @@ public class KingdomData extends SavedData {
         for (Tag t : tag.getList("buildings", Tag.TAG_COMPOUND)) {
             CompoundTag c = (CompoundTag) t;
             int idx = c.getInt("t");
-            if (idx >= 0 && idx < types.length) d.buildings.put(c.getLong("p"), types[idx]);
+            if (idx >= 0 && idx < types.length) {
+                Building b = new Building();
+                b.type = types[idx];
+                b.valid = c.getBoolean("v");
+                b.area = c.getInt("a");
+                b.beds = c.getInt("b");
+                b.capacity = c.getInt("c");
+                b.text = c.getString("x");
+                d.buildings.put(c.getLong("p"), b);
+            }
         }
+        for (Tag t : tag.getList("log", Tag.TAG_STRING)) d.log.add(t.getAsString());
         for (Tag t : tag.getList("outposts", Tag.TAG_COMPOUND)) {
             CompoundTag c = (CompoundTag) t;
             Outpost o = new Outpost(BlockPos.of(c.getLong("p")), c.getInt("l"));

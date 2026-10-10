@@ -4,6 +4,9 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.warfront.kingdom.BuildingType;
 import com.warfront.kingdom.KingdomData;
 import com.warfront.kingdom.KingdomManager;
+import com.warfront.net.HudPacket;
+import com.warfront.net.Net;
+import net.minecraftforge.network.PacketDistributor;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -28,19 +31,25 @@ public final class ServerEvents {
         if (p.getPersistentData().getBoolean(KIT_TAG)) return;
         p.getPersistentData().putBoolean(KIT_TAG, true);
         giveKit(p);
-        p.sendSystemMessage(Component.literal("Ты - генерал. Поставь Штаб в любом месте - там вырастет твоё королевство. "
-                + "Дома и казармы дают жильё, население растёт само. Командуй планшетом (ПКМ или клавиша M)."));
+        p.sendSystemMessage(Component.literal("Ты - генерал. Поставь Штаб - там вырастет королевство. Постройте комнаты "
+                + "(стены, крыша, дверь, факел, кровать) и поставьте в них знак здания. Карта - клавиша M."));
     }
 
     public static void giveKit(ServerPlayer p) {
         give(p, new ItemStack(ModItems.TABLET.get()));
         give(p, new ItemStack(ModItems.HQ.get()));
-        give(p, new ItemStack(ModItems.BUILDINGS.get(BuildingType.HOUSE).get(), 8));
-        give(p, new ItemStack(ModItems.BUILDINGS.get(BuildingType.BARRACKS).get(), 2));
-        give(p, new ItemStack(ModItems.BUILDINGS.get(BuildingType.FARM).get(), 3));
-        give(p, new ItemStack(ModItems.BUILDINGS.get(BuildingType.WORKSHOP).get(), 2));
-        give(p, new ItemStack(ModItems.BUILDINGS.get(BuildingType.ARMORY).get(), 2));
+        give(p, new ItemStack(ModItems.BUILDINGS.get(BuildingType.HOUSE).get(), 2));
+        give(p, new ItemStack(ModItems.BUILDINGS.get(BuildingType.BARRACKS).get(), 1));
+        give(p, new ItemStack(ModItems.BUILDINGS.get(BuildingType.FARM).get(), 1));
+        give(p, new ItemStack(ModItems.BUILDINGS.get(BuildingType.WORKSHOP).get(), 1));
+        give(p, new ItemStack(ModItems.BUILDINGS.get(BuildingType.ARMORY).get(), 1));
         give(p, new ItemStack(ModItems.BUILDINGS.get(BuildingType.FACTORY).get(), 1));
+        give(p, new ItemStack(net.minecraft.world.item.Items.RED_BED, 6));
+        give(p, new ItemStack(net.minecraft.world.item.Items.OAK_DOOR, 4));
+        give(p, new ItemStack(net.minecraft.world.item.Items.TORCH, 16));
+        give(p, new ItemStack(net.minecraft.world.item.Items.OAK_PLANKS, 64));
+        give(p, new ItemStack(net.minecraft.world.item.Items.COBBLESTONE, 128));
+        give(p, new ItemStack(net.minecraft.world.item.Items.IRON_HOE));
         give(p, new ItemStack(ModItems.RIFLE.get()));
         give(p, new ItemStack(ModItems.SMG.get()));
         give(p, new ItemStack(ModItems.LAUNCHER.get()));
@@ -55,7 +64,12 @@ public final class ServerEvents {
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
-        if (event.getServer().getTickCount() % 20 == 0) KingdomManager.tick(event.getServer());
+        int t = event.getServer().getTickCount();
+        if (t % 20 == 0) KingdomManager.tick(event.getServer());
+        if (t % 40 == 0 && KingdomData.get(event.getServer()).founded && !event.getServer().getPlayerList().getPlayers().isEmpty()) {
+            HudPacket hud = KingdomManager.hud(event.getServer());
+            Net.CHANNEL.send(PacketDistributor.ALL.noArg(), hud);
+        }
     }
 
     @SubscribeEvent
@@ -72,6 +86,17 @@ public final class ServerEvents {
                             ? "Население " + k.pop + "/" + k.capacity() + ", еда " + k.food + ", железо " + k.iron
                             + ", боеприпасы " + k.ammo + ", освобождено форпостов " + k.capturedOutposts
                             : "Королевство не основано: поставь Штаб."), false);
+                    return 1;
+                }))
+                .then(Commands.literal("buildings").executes(c -> {
+                    KingdomData k = KingdomData.get(c.getSource().getServer());
+                    for (var e : k.buildings.entrySet()) {
+                        var pos = net.minecraft.core.BlockPos.of(e.getKey());
+                        var b = e.getValue();
+                        c.getSource().sendSuccess(() -> Component.literal((b.valid ? "[OK] " : "[НЕТ] ") + b.type.title + " "
+                                + pos.getX() + " " + pos.getY() + " " + pos.getZ() + ": " + b.text), false);
+                    }
+                    c.getSource().sendSuccess(() -> Component.literal("Зданий: " + k.buildings.size()), false);
                     return 1;
                 }))
                 .then(Commands.literal("raid").requires(s -> s.hasPermission(2)).executes(c -> {

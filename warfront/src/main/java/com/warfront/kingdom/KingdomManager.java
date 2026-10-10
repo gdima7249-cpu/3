@@ -4,6 +4,13 @@ import com.warfront.ModBlocks;
 import com.warfront.block.BuildingBlock;
 import com.warfront.entity.SoldierEntity;
 import com.warfront.entity.TankEntity;
+import com.warfront.net.Net;
+import com.warfront.net.HudPacket;
+import com.warfront.net.NotifyPacket;
+import com.warfront.ModItems;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraftforge.network.PacketDistributor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -43,12 +50,20 @@ public final class KingdomManager {
         ensureOutposts(level, d);
         if (!d.outposts.isEmpty()) d.outposts.get(0).discovered = true;
         d.setDirty();
-        say(level.getServer(), "Королевство основано. Ты - генерал. Открой планшет (ПКМ или клавиша M): "
-                + "стройте дома и казармы, население растёт, враги уже ищут вас.");
+        notify(level.getServer(), "Королевство основано",
+                "Построй комнаты с кроватью, дверью и светом, поставь в них знак здания. Карта: клавиша M.", 0);
+    }
+
+    /** Событие для игрока: всплывающее уведомление + запись в журнал. kind: 0 - обычное, 1 - тревога. */
+    public static void notify(MinecraftServer server, String title, String text, int kind) {
+        KingdomData d = KingdomData.get(server);
+        d.addLog("День " + (server.overworld().getDayTime() / 24000L) + ": " + title + " - " + text);
+        d.setDirty();
+        Net.CHANNEL.send(PacketDistributor.ALL.noArg(), new NotifyPacket(title, text, kind));
     }
 
     public static void say(MinecraftServer server, String text) {
-        server.getPlayerList().broadcastSystemMessage(Component.literal("[Фронт] " + text), false);
+        notify(server, "Фронт", text, 0);
     }
 
     // ---------- главный цикл ----------
@@ -72,18 +87,12 @@ public final class KingdomManager {
     // ---------- население и экономика ----------
 
     private static void economyTurn(MinecraftServer server, ServerLevel level, KingdomData d) {
-        Iterator<Map.Entry<Long, BuildingType>> it = d.buildings.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<Long, BuildingType> e = it.next();
-            BlockPos p = BlockPos.of(e.getKey());
-            if (level.isLoaded(p) && !(level.getBlockState(p).getBlock() instanceof BuildingBlock b && b.type == e.getValue())) {
-                it.remove();
-            }
-        }
-        for (BuildingType b : d.buildings.values()) {
-            d.food += b.food;
-            d.iron += b.iron;
-            d.ammo += b.ammo;
+        revalidateAll(server, level, d);
+        for (KingdomData.Building b : d.buildings.values()) {
+            if (!b.valid) continue;
+            d.food += b.type.food;
+            d.iron += b.type.iron;
+            d.ammo += b.type.ammo;
         }
         int[] units = countUnits(level);
         int used = d.pop + units[0] + units[1] * 2;
@@ -96,10 +105,44 @@ public final class KingdomManager {
             d.food = 0;
             if (d.pop > 0) {
                 d.pop--;
-                say(server, "Голод! Население сокращается. Стройте фермы.");
+                notify(server, "Голод", "Население сокращается. Нужны фермы.", 1);
             }
         }
         d.setDirty();
+    }
+
+    /** Заново проверить все здания в загруженных чанках; сообщить, если какое-то перестало работать. */
+    public static void revalidateAll(MinecraftServer server, ServerLevel level, KingdomData d) {
+        Iterator<Map.Entry<Long, KingdomData.Building>> it = d.buildings.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<Long, KingdomData.Building> e = it.next();
+            BlockPos p = BlockPos.of(e.getKey());
+            if (!level.isLoaded(p)) continue;
+            if (!(level.getBlockState(p).getBlock() instanceof BuildingBlock bb)) {
+                it.remove();
+                continue;
+            }
+            KingdomData.Building old = e.getValue();
+            KingdomData.Building now = HousingValidator.validate(level, p, bb.type, d);
+            if (now == null) continue;
+            e.setValue(now);
+            if (old.valid && !now.valid) {
+                notify(server, bb.type.title + " не работает", now.text, 1);
+            } else if (!old.valid && now.valid) {
+                notify(server, bb.type.title + " принят", now.text, 0);
+            }
+        }
+    }
+
+    /** Проверить одно здание (при установке и по ПКМ). Возвращает результат или null, если область не загружена. */
+    public static KingdomData.Building check(ServerLevel level, BlockPos pos, BuildingType type) {
+        KingdomData d = KingdomData.get(level.getServer());
+        KingdomData.Building b = HousingValidator.validate(level, pos, type, d);
+        if (b != null) {
+            d.buildings.put(pos.asLong(), b);
+            d.setDirty();
+        }
+        return b;
     }
 
     /** [0] - солдаты игрока, [1] - танки игрока. */
@@ -132,8 +175,7 @@ public final class KingdomManager {
             if (s != null) s.giveOrder(SoldierEntity.ATTACK, d.hq);
         }
         d.raidsSurvived++;
-        say(level.getServer(), "ТРЕВОГА! Вражеский налёт (" + n + " солдат) с направления " + direction(ang)
-                + ". Занимайте оборону у штаба!");
+        notify(level.getServer(), "ТРЕВОГА: налёт", n + " солдат с " + direction(ang) + ". Занимайте оборону у штаба!", 1);
         d.setDirty();
     }
 
@@ -206,7 +248,7 @@ public final class KingdomManager {
                 if (seen) {
                     o.discovered = true;
                     dirty = true;
-                    say(level.getServer(), "Разведка обнаружила вражеский форпост на карте!");
+                    notify(level.getServer(), "Разведка", "Обнаружен вражеский форпост - он на карте.", 0);
                 }
             }
             if (!level.isLoaded(o.pos)) continue;
@@ -238,7 +280,7 @@ public final class KingdomManager {
         for (int h = 0; h <= 2; h++) {
             level.setBlock(o.pos.above(h), Blocks.LIGHT_BLUE_CONCRETE.defaultBlockState(), 3);
         }
-        say(level.getServer(), "Форпост освобождён! Трофеи: +железо, +боеприпасы, +еда, жильё +10. Враг укрепляется...");
+        notify(level.getServer(), "Форпост освобождён", "Трофеи: железо, боеприпасы, еда, жильё +10. Враг строит новый форпост.", 0);
         ensureOutposts(level, d);
     }
 
@@ -322,8 +364,8 @@ public final class KingdomManager {
 
     private static BlockPos spawnPoint(ServerLevel level, KingdomData d) {
         List<BlockPos> list = new ArrayList<>();
-        for (Map.Entry<Long, BuildingType> e : d.buildings.entrySet()) {
-            if (e.getValue() == BuildingType.BARRACKS) list.add(BlockPos.of(e.getKey()));
+        for (Map.Entry<Long, KingdomData.Building> e : d.buildings.entrySet()) {
+            if (e.getValue().valid && e.getValue().type == BuildingType.BARRACKS) list.add(BlockPos.of(e.getKey()));
         }
         BlockPos base = list.isEmpty() ? d.hq : list.get(level.random.nextInt(list.size()));
         return base.above();
@@ -331,11 +373,60 @@ public final class KingdomManager {
 
     private static BlockPos factoryPoint(ServerLevel level, KingdomData d) {
         List<BlockPos> list = new ArrayList<>();
-        for (Map.Entry<Long, BuildingType> e : d.buildings.entrySet()) {
-            if (e.getValue() == BuildingType.FACTORY) list.add(BlockPos.of(e.getKey()));
+        for (Map.Entry<Long, KingdomData.Building> e : d.buildings.entrySet()) {
+            if (e.getValue().valid && e.getValue().type == BuildingType.FACTORY) list.add(BlockPos.of(e.getKey()));
         }
         BlockPos base = list.isEmpty() ? d.hq : list.get(level.random.nextInt(list.size()));
         return base.above();
+    }
+
+    // ---------- покупки ----------
+
+    public static final int FURNITURE_PRICE = 10;
+
+    /** item: 0..5 - блок здания (по порядку BuildingType), 6 - набор мебели (2 кровати, дверь, 4 факела). */
+    public static void buy(ServerPlayer p, int item) {
+        KingdomData d = KingdomData.get(p.server);
+        if (!d.founded) return;
+        BuildingType[] types = BuildingType.values();
+        int price;
+        String name;
+        if (item >= 0 && item < types.length) {
+            price = types[item].price;
+            name = types[item].title;
+        } else if (item == types.length) {
+            price = FURNITURE_PRICE;
+            name = "Набор мебели";
+        } else {
+            return;
+        }
+        if (d.iron < price) {
+            p.displayClientMessage(Component.literal("Не хватает железа: нужно " + price + ", есть " + d.iron), true);
+            return;
+        }
+        d.iron -= price;
+        d.setDirty();
+        if (item < types.length) {
+            giveItem(p, new ItemStack(ModItems.BUILDINGS.get(types[item]).get()));
+        } else {
+            giveItem(p, new ItemStack(Items.RED_BED, 2));
+            giveItem(p, new ItemStack(Items.OAK_DOOR, 1));
+            giveItem(p, new ItemStack(Items.TORCH, 4));
+        }
+        p.displayClientMessage(Component.literal("Куплено: " + name + " (-" + price + " железа)"), true);
+    }
+
+    public static void giveItem(ServerPlayer p, ItemStack s) {
+        if (!p.getInventory().add(s)) p.drop(s, false);
+    }
+
+    /** Лёгкий снимок для HUD. */
+    public static HudPacket hud(MinecraftServer server) {
+        KingdomData d = KingdomData.get(server);
+        ServerLevel level = server.overworld();
+        int[] u = countUnits(level);
+        return new HudPacket((int) (level.getDayTime() / 24000L), d.pop, d.capacity(), d.food, d.iron, d.ammo,
+                u[0], d.soldierCap(), u[1], d.tankCap());
     }
 
     // ---------- снимок для карты ----------
@@ -357,10 +448,14 @@ public final class KingdomManager {
         v.hq = d.hq;
         for (BuildingType t : BuildingType.values()) v.buildings[t.ordinal()] = d.count(t);
         System.arraycopy(d.squadOrder, 0, v.squadOrder, 0, v.squadOrder.length);
+        v.log.addAll(d.log);
         v.markers.add(new KingdomView.Marker(KingdomView.M_HQ, d.hq.getX(), d.hq.getZ(), 0));
-        for (Map.Entry<Long, BuildingType> e : d.buildings.entrySet()) {
+        for (Map.Entry<Long, KingdomData.Building> e : d.buildings.entrySet()) {
             BlockPos p = BlockPos.of(e.getKey());
-            v.markers.add(new KingdomView.Marker(KingdomView.M_BUILDING + e.getValue().ordinal(), p.getX(), p.getZ(), 0));
+            KingdomData.Building bd = e.getValue();
+            v.markers.add(new KingdomView.Marker(KingdomView.M_BUILDING + bd.type.ordinal(), p.getX(), p.getZ(), bd.valid ? 0 : 1));
+            v.buildingList.add(new KingdomView.BuildingView(bd.type.ordinal(), p.getX(), p.getY(), p.getZ(),
+                    bd.capacity, bd.valid, bd.text));
         }
         for (KingdomData.Outpost o : d.outposts) {
             if (o.captured) v.markers.add(new KingdomView.Marker(KingdomView.M_FREED, o.pos.getX(), o.pos.getZ(), 0));

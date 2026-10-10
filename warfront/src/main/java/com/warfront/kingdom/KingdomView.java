@@ -12,6 +12,7 @@ public class KingdomView {
             M_OUTPOST = 10, M_FREED = 11, M_ORDER = 12;
 
     public static final class Marker {
+        /** Для зданий: squad = 1 означает "не прошло проверку". */
         public final int type, x, z, squad;
 
         public Marker(int type, int x, int z, int squad) {
@@ -22,6 +23,22 @@ public class KingdomView {
         }
     }
 
+    public static final class BuildingView {
+        public final int type, x, y, z, capacity;
+        public final boolean valid;
+        public final String text;
+
+        public BuildingView(int type, int x, int y, int z, int capacity, boolean valid, String text) {
+            this.type = type;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.capacity = capacity;
+            this.valid = valid;
+            this.text = text;
+        }
+    }
+
     public int day, pop, cap, food, iron, ammo, soldiers, soldierCap, tanks, tankCap, raids, freed;
     public int[] squadSoldiers = new int[KingdomData.SQUADS + 1];
     public int[] squadTanks = new int[KingdomData.SQUADS + 1];
@@ -29,6 +46,8 @@ public class KingdomView {
     public int[] buildings = new int[BuildingType.values().length];
     public BlockPos hq = BlockPos.ZERO;
     public final List<Marker> markers = new ArrayList<>();
+    public final List<BuildingView> buildingList = new ArrayList<>();
+    public final List<String> log = new ArrayList<>();
 
     public void write(FriendlyByteBuf b) {
         b.writeVarInt(day);
@@ -57,6 +76,18 @@ public class KingdomView {
             b.writeInt(m.z);
             b.writeByte(m.squad);
         }
+        b.writeVarInt(buildingList.size());
+        for (BuildingView v : buildingList) {
+            b.writeVarInt(v.type);
+            b.writeInt(v.x);
+            b.writeInt(v.y);
+            b.writeInt(v.z);
+            b.writeVarInt(v.capacity);
+            b.writeBoolean(v.valid);
+            b.writeUtf(v.text, 400);
+        }
+        b.writeVarInt(log.size());
+        for (String l : log) b.writeUtf(l, 300);
     }
 
     public static KingdomView read(FriendlyByteBuf b) {
@@ -84,6 +115,13 @@ public class KingdomView {
         for (int i = 0; i < n; i++) {
             v.markers.add(new Marker(b.readByte(), b.readInt(), b.readInt(), b.readByte()));
         }
+        int nb = b.readVarInt();
+        for (int i = 0; i < nb; i++) {
+            v.buildingList.add(new BuildingView(b.readVarInt(), b.readInt(), b.readInt(), b.readInt(),
+                    b.readVarInt(), b.readBoolean(), b.readUtf(400)));
+        }
+        int nl = b.readVarInt();
+        for (int i = 0; i < nl; i++) v.log.add(b.readUtf(300));
         return v;
     }
 }

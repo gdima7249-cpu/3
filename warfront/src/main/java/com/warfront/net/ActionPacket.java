@@ -11,7 +11,7 @@ import java.util.function.Supplier;
 
 /** Простые действия игрока: обновить карту, открыть карту, нанять, построить танк, выстрелить. */
 public class ActionPacket {
-    public static final int SYNC = 0, OPEN = 1, RECRUIT = 2, BUILD_TANK = 3, FIRE = 4;
+    public static final int SYNC = 0, OPEN = 1, RECRUIT = 2, BUILD_TANK = 3, FIRE = 4, BUY = 5;
 
     public final int action, a, b;
 
@@ -46,6 +46,10 @@ public class ActionPacket {
                 }
                 case BUILD_TANK -> {
                     KingdomManager.buildTank(sender, p.a);
+                    Net.sendSync(sender, false);
+                }
+                case BUY -> {
+                    KingdomManager.buy(sender, p.a);
                     Net.sendSync(sender, false);
                 }
                 case FIRE -> {

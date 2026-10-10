@@ -20,11 +20,11 @@ public final class ModBlocks {
 
     public static final RegistryObject<Block> HQ = BLOCKS.register("headquarters",
             () -> new HeadquartersBlock(BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_RED)
-                    .strength(5f, 12f).sound(SoundType.METAL)));
+                    .strength(5f, 12f).sound(SoundType.METAL).noOcclusion()));
 
     public static final RegistryObject<Block> ENEMY_FLAG = BLOCKS.register("enemy_flag",
             () -> new EnemyFlagBlock(BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_BLACK)
-                    .strength(-1f, 3600000f).sound(SoundType.WOOL).noLootTable()));
+                    .strength(-1f, 3600000f).sound(SoundType.WOOL).noLootTable().noOcclusion()));
 
     public static final Map<BuildingType, RegistryObject<Block>> BUILDINGS = new EnumMap<>(BuildingType.class);
 
@@ -32,7 +32,7 @@ public final class ModBlocks {
         for (BuildingType t : BuildingType.values()) {
             BUILDINGS.put(t, BLOCKS.register(t.id,
                     () -> new BuildingBlock(t, BlockBehaviour.Properties.of().mapColor(MapColor.STONE)
-                            .strength(3f, 6f).sound(SoundType.STONE))));
+                            .strength(3f, 6f).sound(SoundType.STONE).noOcclusion())));
         }
     }
 

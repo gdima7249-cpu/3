@@ -75,6 +75,18 @@ public class SoldierEntity extends PathfinderMob implements RangedAttackMob {
 
     public void setSquad(int squad) {
         entityData.set(SQUAD, squad);
+        refreshLabel();
+    }
+
+    /** Подпись над головой: номер отряда (у врагов подписи нет). */
+    public void refreshLabel() {
+        if (isEnemy()) {
+            setCustomName(null);
+            setCustomNameVisible(false);
+        } else {
+            setCustomName(net.minecraft.network.chat.Component.literal((this instanceof TankEntity ? "Танк " : "Отряд ") + getSquad()));
+            setCustomNameVisible(true);
+        }
     }
 
     public boolean isEnemy() {
@@ -83,6 +95,7 @@ public class SoldierEntity extends PathfinderMob implements RangedAttackMob {
 
     public void setEnemy(boolean enemy) {
         entityData.set(ENEMY, enemy);
+        refreshLabel();
     }
 
     public void giveOrder(int type, BlockPos pos) {
@@ -154,6 +167,16 @@ public class SoldierEntity extends PathfinderMob implements RangedAttackMob {
         @Override
         public boolean canContinueToUse() {
             return canUse();
+        }
+
+        @Override
+        public void start() {
+            m.setAggressive(true);
+        }
+
+        @Override
+        public void stop() {
+            m.setAggressive(false);
         }
 
         @Override
@@ -291,6 +314,7 @@ public class SoldierEntity extends PathfinderMob implements RangedAttackMob {
         super.readAdditionalSaveData(tag);
         setSquad(Math.max(1, tag.getInt("Squad")));
         setEnemy(tag.getBoolean("Enemy"));
+        refreshLabel();
         order = tag.getInt("Order");
         orderPos = tag.contains("OrderPos") ? BlockPos.of(tag.getLong("OrderPos")) : null;
     }
@@ -305,8 +329,13 @@ public class SoldierEntity extends PathfinderMob implements RangedAttackMob {
         s.setEnemy(enemy);
         s.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(ModItems.RIFLE.get()));
         s.setItemSlot(EquipmentSlot.HEAD, new ItemStack(net.minecraft.world.item.Items.IRON_HELMET));
-        s.setDropChance(EquipmentSlot.MAINHAND, 0.0F);
-        s.setDropChance(EquipmentSlot.HEAD, 0.0F);
+        s.setItemSlot(EquipmentSlot.CHEST, new ItemStack(enemy ? net.minecraft.world.item.Items.LEATHER_CHESTPLATE
+                : net.minecraft.world.item.Items.IRON_CHESTPLATE));
+        s.setItemSlot(EquipmentSlot.LEGS, new ItemStack(enemy ? net.minecraft.world.item.Items.LEATHER_LEGGINGS
+                : net.minecraft.world.item.Items.CHAINMAIL_LEGGINGS));
+        s.setItemSlot(EquipmentSlot.FEET, new ItemStack(enemy ? net.minecraft.world.item.Items.LEATHER_BOOTS
+                : net.minecraft.world.item.Items.CHAINMAIL_BOOTS));
+        for (EquipmentSlot slot : EquipmentSlot.values()) s.setDropChance(slot, 0.0F);
         level.addFreshEntity(s);
         return s;
     }
