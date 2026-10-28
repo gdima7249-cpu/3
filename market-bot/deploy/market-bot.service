@@ -1,0 +1,17 @@
+# systemd-сервис: бот запускается вместе с сервером и перезапускается при сбое.
+# Установка:  cp deploy/market-bot.service /etc/systemd/system/ && systemctl daemon-reload && systemctl enable --now market-bot
+# Логи:       journalctl -u market-bot -f
+[Unit]
+Description=Yandex Market price bot (Telegram)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/market-bot
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning src/index.js
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

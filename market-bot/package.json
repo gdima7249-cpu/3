@@ -1,0 +1,15 @@
+{
+  "name": "market-price-bot",
+  "version": "1.1.1",
+  "private": true,
+  "description": "Telegram-бот: раз в день проверяет цену товара и промокод на Яндекс Маркете, присылает их и строит динамику",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/index.js",
+    "probe": "node --disable-warning=ExperimentalWarning scripts/probe.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  }
+}
