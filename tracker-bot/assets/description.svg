@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360">
+  <defs>
+    <radialGradient id="bg" cx="30%" cy="40%" r="90%"><stop offset="0" stop-color="#151b08"/><stop offset=".6" stop-color="#0a0b10"/><stop offset="1" stop-color="#050507"/></radialGradient>
+    <linearGradient id="ln" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#34E8FF"/><stop offset="1" stop-color="#D4FF3A"/></linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <rect width="640" height="360" fill="url(#bg)"/>
+  <g stroke="#ffffff" stroke-opacity=".05">
+    <path d="M0 90 H640 M0 180 H640 M0 270 H640 M160 0 V360 M320 0 V360 M480 0 V360"/>
+  </g>
+  <g transform="translate(150 175)">
+    <g fill="none" stroke="url(#ln)" stroke-width="9" stroke-linecap="round" filter="url(#glow)">
+      <circle r="105"/><path d="M0 -140 V-95 M0 95 V140 M-140 0 H-95 M95 0 H140"/>
+    </g>
+    <path d="M-95 45 L-55 22 L-25 37 L10 -15 L38 2 L80 -55" fill="none" stroke="#D4FF3A" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+    <path d="M57 -60 L82 -57 L78 -32" fill="none" stroke="#D4FF3A" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+  </g>
+  <text x="315" y="150" font-family="Unbounded, Montserrat, Arial Black, Arial, sans-serif" font-weight="800" font-size="50" fill="#EEF0F6">Skin<tspan fill="#D4FF3A">Watch</tspan></text>
+  <g font-family="Manrope, Inter, Segoe UI, Arial, sans-serif" font-size="19" fill="#A9AEBD">
+    <text x="318" y="198">Цены на скины CS2 и где дешевле</text>
+    <text x="318" y="228">Уведомления и оценка рынка</text>
+    <text x="318" y="258">Стоимость инвентаря</text>
+    <text x="318" y="288">Скидки на игры Steam</text>
+  </g>
+  <g fill="#D4FF3A"><circle cx="306" cy="192" r="3.5"/><circle cx="306" cy="222" r="3.5"/><circle cx="306" cy="252" r="3.5"/><circle cx="306" cy="282" r="3.5"/></g>
+</svg>

@@ -1,0 +1,16 @@
+{
+  "name": "skinwatch-bot",
+  "version": "1.7.0",
+  "private": true,
+  "description": "Telegram-бот: цены на скины CS2 с ликвидностью и рекомендуемой ценой, уведомления, инвентарь, вишлист игр Steam; тарифы Бесплатный/ПРО/УЛЬТРА",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/index.js",
+    "yoomoney": "node scripts/yoomoney-auth.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js",
+    "check": "node --disable-warning=ExperimentalWarning scripts/diagnose.js"
+  }
+}

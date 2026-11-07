@@ -1,0 +1,17 @@
+# systemd-сервис: бот запускается вместе с сервером и перезапускается при сбое.
+# Установка:  cp deploy/skinwatch.service /etc/systemd/system/ && systemctl daemon-reload && systemctl enable --now skinwatch
+# Логи:       journalctl -u skinwatch -f
+[Unit]
+Description=SkinWatch Telegram bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/tracker-bot
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning src/index.js
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

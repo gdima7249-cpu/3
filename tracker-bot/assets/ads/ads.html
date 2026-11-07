@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>SkinWatch — рекламные картинки</title>
+<style>
+  @font-face { font-family: Unbounded; font-weight: 600; src: url(fonts/Unbounded-600.ttf); }
+  @font-face { font-family: Unbounded; font-weight: 800; src: url(fonts/Unbounded-800.ttf); }
+  @font-face { font-family: Manrope; font-weight: 500; src: url(fonts/Manrope-500.ttf); }
+  @font-face { font-family: Manrope; font-weight: 700; src: url(fonts/Manrope-700.ttf); }
+  @font-face { font-family: Manrope; font-weight: 800; src: url(fonts/Manrope-800.ttf); }
+
+  :root {
+    --bg: #07080c;
+    --panel: #11141c;
+    --panel-2: #171b25;
+    --line: rgba(255,255,255,.08);
+    --text: #f3f5f9;
+    --muted: #8d95a7;
+    --lime: #d4ff3a;
+    --cyan: #34e8ff;
+    --red: #ff5a6e;
+    --star: #ffc93a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #222; font-family: Manrope, sans-serif; color: var(--text); display: grid; gap: 40px; padding: 40px; justify-content: center; }
+
+  .ad {
+    width: 1080px; height: 1350px; position: relative; overflow: hidden;
+    background:
+      radial-gradient(900px 700px at 15% 8%, rgba(212,255,58,.13), transparent 60%),
+      radial-gradient(800px 700px at 100% 100%, rgba(52,232,255,.12), transparent 60%),
+      var(--bg);
+    padding: 72px 80px 0;
+    display: flex; flex-direction: column;
+  }
+  .ad::before { /* сетка как на аватарке */
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+    background-size: 90px 90px;
+    mask-image: linear-gradient(180deg, #000 0%, transparent 75%);
+  }
+  .ad > * { position: relative; }
+
+  .kicker { font: 700 30px Manrope; letter-spacing: .14em; text-transform: uppercase; color: var(--lime); display: flex; align-items: center; gap: 16px; }
+  .kicker .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 18px var(--lime); }
+  h1 { font: 800 80px/1.05 Unbounded; letter-spacing: -.02em; margin-top: 22px; text-wrap: balance; }
+  h1 em { font-style: normal; color: var(--lime); }
+  h1 .c { color: var(--cyan); }
+  .sub { font: 500 34px/1.35 Manrope; color: #c3c9d6; margin-top: 22px; max-width: 880px; text-wrap: pretty; }
+
+  .stage { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; padding: 30px 0; }
+
+  .card { background: linear-gradient(180deg, var(--panel-2), var(--panel)); border: 1px solid var(--line); border-radius: 36px; padding: 32px 40px; box-shadow: 0 40px 80px rgba(0,0,0,.45); }
+  .skin { font: 800 34px Manrope; }
+  .skin small { display: block; font: 500 26px Manrope; color: var(--muted); margin-top: 6px; }
+
+  .rows { margin-top: 22px; display: grid; gap: 12px; }
+  .row { display: flex; align-items: center; justify-content: space-between; padding: 19px 26px; border-radius: 20px; background: rgba(255,255,255,.035); font: 700 32px Manrope; }
+  .row .p { font: 800 34px Manrope; font-variant-numeric: tabular-nums; }
+  .row.best { background: rgba(212,255,58,.12); outline: 3px solid var(--lime); }
+  .row.best .p { color: var(--lime); }
+  .tag { font: 800 22px Manrope; letter-spacing: .06em; text-transform: uppercase; background: var(--lime); color: #0b0d06; padding: 8px 14px; border-radius: 12px; margin-left: 16px; vertical-align: middle; }
+  .save { margin-top: 22px; display: flex; justify-content: space-between; align-items: center; font: 700 30px Manrope; color: #c3c9d6; }
+  .save b { font: 800 40px Unbounded; color: var(--lime); }
+
+  /* уведомления */
+  .notif { display: flex; gap: 26px; align-items: flex-start; }
+  .notif + .notif { margin-top: 22px; }
+  .ava { width: 92px; height: 92px; border-radius: 50%; flex: none; display: grid; place-items: center; }
+  .ava img { width: 92px; height: 92px; border-radius: 50%; }
+  .bubble { flex: 1; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px 34px 34px 34px; padding: 24px 30px; box-shadow: 0 30px 60px rgba(0,0,0,.4); }
+  .bubble .name { font: 800 28px Manrope; color: var(--cyan); display: flex; justify-content: space-between; }
+  .bubble .name span { color: var(--muted); font-weight: 500; }
+  .bubble .t { font: 700 32px/1.35 Manrope; margin-top: 12px; }
+  .bubble .price { font: 800 44px Unbounded; margin-top: 10px; font-variant-numeric: tabular-nums; }
+  .bubble .price s { color: var(--muted); font: 600 30px Unbounded; margin-right: 14px; }
+  .down { color: var(--lime); }
+  .up { color: var(--cyan); }
+  .bubble .btn { display: inline-block; margin-top: 18px; font: 800 26px Manrope; padding: 14px 24px; border-radius: 16px; background: rgba(255,255,255,.07); }
+
+  /* инвентарь */
+  .total { font: 800 104px Unbounded; letter-spacing: -.03em; font-variant-numeric: tabular-nums; margin-top: 8px; }
+  .delta { display: inline-block; font: 800 30px Manrope; color: #0b0d06; background: var(--lime); padding: 8px 18px; border-radius: 14px; margin-top: 12px; }
+  .spark { margin: 18px -10px 0; display: block; }
+  .items { display: grid; margin-top: 10px; }
+  .it { display: flex; justify-content: space-between; font: 700 30px Manrope; padding: 16px 0; border-top: 1px solid var(--line); }
+  .it span:last-child { font-weight: 800; font-variant-numeric: tabular-nums; }
+
+  /* инвестиции */
+  .sec { font: 800 24px Manrope; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 4px 0 8px; }
+  .pick { display: flex; align-items: center; justify-content: space-between; padding: 17px 0; border-top: 1px solid var(--line); font: 700 31px Manrope; }
+  .pick .chg { font: 800 30px Manrope; padding: 8px 16px; border-radius: 12px; }
+  .pick .chg.down { background: rgba(212,255,58,.14); }
+  .pick .chg.up { background: rgba(52,232,255,.14); }
+  .premium { display: flex; align-items: center; gap: 16px; margin-top: 22px; font: 800 34px Unbounded; }
+  .premium .star { color: var(--star); }
+  .premium small { font: 600 26px Manrope; color: var(--muted); }
+
+  .foot {
+    margin: 0 -80px; padding: 28px 80px 32px; display: flex; align-items: center; justify-content: space-between;
+    background: rgba(0,0,0,.35); border-top: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 24px; }
+  .brand img { width: 88px; height: 88px; border-radius: 24px; }
+  .brand b { font: 800 40px Unbounded; display: block; }
+  .brand span { font: 600 28px Manrope; color: var(--muted); }
+  .cta { font: 800 32px Manrope; color: #0b0d06; background: var(--lime); padding: 24px 36px; border-radius: 26px; box-shadow: 0 0 40px rgba(212,255,58,.35); }
+  .note { text-align: right; font: 500 22px Manrope; color: #5d6475; padding-bottom: 18px; }
+  .pipe { color: #5d6475; font-weight: 500; margin: 0 .12em; }
+</style>
+</head>
+<body>
+
+<!-- 1. Сравнение цен -->
+<section class="ad" id="ad1">
+  <div class="kicker"><i class="dot"></i>Скины CS2</div>
+  <h1>Где скин <em>дешевле?</em></h1>
+  <p class="sub">Сравниваю цены на 4 площадках за секунду и показываю лучшую.</p>
+  <div class="stage">
+    <div class="card">
+      <div class="skin">AK-47 <span class="pipe">|</span> Redline<small>Field-Tested</small></div>
+      <div class="rows">
+        <div class="row best"><span>Lis-Skins <span class="tag">лучшая</span></span><span class="p">1 198 ₽</span></div>
+        <div class="row"><span>Маркет CS</span><span class="p">1 245 ₽</span></div>
+        <div class="row"><span>Skinport</span><span class="p">1 310 ₽</span></div>
+        <div class="row"><span>Steam</span><span class="p">1 520 ₽</span></div>
+      </div>
+      <div class="save"><span>Выгоднее, чем в Steam, на</span><b>322 ₽</b></div>
+    </div>
+  </div>
+  <div class="note">Цены для примера</div>
+  <div class="foot">
+    <div class="brand"><img src="../avatar.png" alt=""><div><b>SkinWatch</b><span>бот в Telegram</span></div></div>
+    <div class="cta">Открыть бота →</div>
+  </div>
+</section>
+
+<!-- 2. Уведомления -->
+<section class="ad" id="ad2">
+  <div class="kicker"><i class="dot"></i>Уведомления о ценах</div>
+  <h1>Скин подешевел? <em>Узнаешь первым</em></h1>
+  <p class="sub">Выбери скин и цену. Бот напишет, как только она изменится.</p>
+  <div class="stage">
+    <div class="notif">
+      <div class="ava"><img src="../avatar.png" alt=""></div>
+      <div class="bubble">
+        <div class="name">SkinWatch <span>только что</span></div>
+        <div class="t">🔔 AWP <span class="pipe">|</span> Asiimov (FT) <span class="down">подешевел на 12%</span></div>
+        <div class="price"><s>7 940 ₽</s><span class="down">6 990 ₽</span></div>
+        <div class="btn">Купить на Маркет CS</div>
+      </div>
+    </div>
+    <div class="notif">
+      <div class="ava"><img src="../avatar.png" alt=""></div>
+      <div class="bubble">
+        <div class="name">SkinWatch <span>2 мин назад</span></div>
+        <div class="t">📈 Glock-18 <span class="pipe">|</span> Fade (FN) <span class="up">вырос на 8%</span></div>
+        <div class="price"><s>98 400 ₽</s><span class="up">106 300 ₽</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="note">Цены для примера</div>
+  <div class="foot">
+    <div class="brand"><img src="../avatar.png" alt=""><div><b>SkinWatch</b><span>бот в Telegram</span></div></div>
+    <div class="cta">Включить →</div>
+  </div>
+</section>
+
+<!-- 3. Инвентарь -->
+<section class="ad" id="ad3">
+  <div class="kicker"><i class="dot"></i>Инвентарь Steam</div>
+  <h1>Сколько стоит <span class="c">твой&nbsp;инвентарь?</span></h1>
+  <p class="sub">Пришли ссылку на профиль — посчитаю и сообщу, когда цены изменятся.</p>
+  <div class="stage">
+    <div class="card">
+      <div class="skin" style="color:var(--muted);font-weight:700">💼 Инвентарь CS2 · 37 предметов</div>
+      <div class="total">48 320 ₽</div>
+      <div class="delta">▲ +2 140 ₽ за неделю</div>
+      <svg class="spark" width="912" height="150" viewBox="0 0 912 150" fill="none">
+        <defs><linearGradient id="sg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#34E8FF"/><stop offset="1" stop-color="#D4FF3A"/></linearGradient>
+        <linearGradient id="sf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D4FF3A" stop-opacity=".22"/><stop offset="1" stop-color="#D4FF3A" stop-opacity="0"/></linearGradient></defs>
+        <path d="M10 118 L130 104 L250 112 L370 84 L490 92 L610 60 L730 70 L900 26 V150 H10 Z" fill="url(#sf)"/>
+        <path d="M10 118 L130 104 L250 112 L370 84 L490 92 L610 60 L730 70 L900 26" stroke="url(#sg)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="900" cy="26" r="11" fill="#D4FF3A"/>
+      </svg>
+      <div class="items">
+        <div class="it"><span>★ Gut Knife <span class="pipe">|</span> Doppler</span><span>21 900 ₽</span></div>
+        <div class="it"><span>AK-47 <span class="pipe">|</span> Vulcan (MW)</span><span>9 450 ₽</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="note">Цены для примера</div>
+  <div class="foot">
+    <div class="brand"><img src="../avatar.png" alt=""><div><b>SkinWatch</b><span>бот в Telegram</span></div></div>
+    <div class="cta">Узнать цену →</div>
+  </div>
+</section>
+
+<!-- 4. Что купить (премиум) -->
+<section class="ad" id="ad4">
+  <div class="kicker"><i class="dot"></i>Оценка рынка</div>
+  <h1>Какой скин <em>купить сейчас?</em></h1>
+  <p class="sub">Бот разбирает историю продаж и находит скины дешевле обычного и те, что растут.</p>
+  <div class="stage">
+    <div class="card">
+      <div class="sec">Сейчас дешевле обычного</div>
+      <div class="pick"><span>USP-S <span class="pipe">|</span> Kill Confirmed (FT)</span><span class="chg down">−18%</span></div>
+      <div class="pick"><span>Desert Eagle <span class="pipe">|</span> Printstream (FT)</span><span class="chg down">−12%</span></div>
+      <div class="sec" style="margin-top:26px">Растут</div>
+      <div class="pick"><span>Sport Gloves <span class="pipe">|</span> Vice (BS)</span><span class="chg up">+14%</span></div>
+      <div class="pick"><span>AWP <span class="pipe">|</span> Neo-Noir (FT)</span><span class="chg up">+9%</span></div>
+      <div class="premium"><span class="star">★</span>Премиум<small>· мгновенные уведомления и подборки</small></div>
+    </div>
+  </div>
+  <div class="note">Пример подборки · не финансовый совет</div>
+  <div class="foot">
+    <div class="brand"><img src="../avatar.png" alt=""><div><b>SkinWatch</b><span>бот в Telegram</span></div></div>
+    <div class="cta">Смотреть подборку →</div>
+  </div>
+</section>
+
+</body>
+</html>
