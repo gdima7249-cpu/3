@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Поиск сайтов с явными проблемами и подготовка черновиков писем владельцам.
 
-Две команды:
+Три команды:
+  search — ищет сайты через API Яндекс Поиска и дописывает их в список;
   audit  — проверяет сайты из списка, пишет отчёт и черновики писем (ничего не отправляет);
   send   — отправляет только те черновики, которые вы просмотрели и переложили в папку approved/.
 
@@ -11,6 +12,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import csv
 import datetime as dt
 import json
@@ -29,6 +31,7 @@ from email.utils import formataddr, make_msgid
 from pathlib import Path
 from urllib import robotparser
 from urllib.parse import urljoin, urlparse
+import xml.etree.ElementTree as ET
 
 import requests
 from bs4 import BeautifulSoup
@@ -425,6 +428,92 @@ def load_sent(path: Path) -> set[str]:
     return {r["domain"] for r in rows} | {r["to"].lower() for r in rows}
 
 
+# ───────────────────────────── поиск через Яндекс ─────────────────────────────
+YANDEX_URL = "https://searchapi.api.cloud.yandex.net/v2/web/search"
+# каталоги, соцсети и агрегаторы: их сайты не про «владельца бизнеса», писать им бессмысленно
+SKIP_DOMAINS = {
+    "yandex.ru", "ya.ru", "dzen.ru", "google.com", "vk.com", "ok.ru", "t.me", "youtube.com", "rutube.ru",
+    "avito.ru", "2gis.ru", "zoon.ru", "yell.ru", "flamp.ru", "otzovik.com", "irecommend.ru", "prodoctorov.ru",
+    "napopravku.ru", "sberhealth.ru", "docdoc.ru", "profi.ru", "youdo.com", "hh.ru", "superjob.ru",
+    "wikipedia.org", "ozon.ru", "wildberries.ru", "market.yandex.ru", "rusprofile.ru", "list-org.com",
+    "spravker.ru", "orgpage.ru", "tripadvisor.ru", "restoclub.ru", "cian.ru", "domclick.ru", "drom.ru", "auto.ru",
+    "pikabu.ru", "vc.ru", "habr.com", "mail.ru", "rbc.ru", "gosuslugi.ru", "nalog.gov.ru",
+}
+
+
+class YandexError(RuntimeError):
+    pass
+
+
+def root_domain_skipped(domain: str, skip: set[str]) -> bool:
+    parts = domain.split(".")
+    return any(".".join(parts[i:]) in skip for i in range(len(parts) - 1)) or domain.endswith(".gov.ru")
+
+
+def yandex_search(query: str, page: int, api_key: str, folder_id: str, region: str | None) -> list[str]:
+    """Одна страница выдачи → список URL. Синхронный режим API v2, ответ — XML в Base64."""
+    body = {
+        "query": {"searchType": "SEARCH_TYPE_RU", "queryText": query, "page": str(page)},
+        "folderId": folder_id,
+        "responseFormat": "FORMAT_XML",
+    }
+    if region:
+        body["region"] = region
+    r = requests.post(YANDEX_URL, json=body, headers={"Authorization": f"Api-Key {api_key}"}, timeout=60)
+    if r.status_code != 200:
+        raise YandexError(f"HTTP {r.status_code}: {r.text[:300]}")
+    raw = r.json().get("rawData")
+    if not raw:
+        raise YandexError(f"в ответе нет rawData: {r.text[:300]}")
+    root = ET.fromstring(base64.b64decode(raw))
+    err = root.find(".//error")
+    if err is not None:
+        if err.get("code") == "15":  # «Искомая комбинация слов нигде не встречается» — просто пустая выдача
+            return []
+        raise YandexError(f"ошибка Яндекса {err.get('code')}: {(err.text or '').strip()}")
+    return [u.text.strip() for u in root.iterfind(".//doc/url") if u.text]
+
+
+def cmd_search(args):
+    api_key, folder = os.environ.get("YANDEX_SEARCH_API_KEY"), os.environ.get("YANDEX_FOLDER_ID")
+    if not api_key or not folder:
+        sys.exit("Нужны переменные YANDEX_SEARCH_API_KEY и YANDEX_FOLDER_ID (см. README).")
+    queries = list(args.query)
+    if args.queries:
+        queries += [q.strip() for q in Path(args.queries).read_text(encoding="utf-8").splitlines()
+                    if q.strip() and not q.startswith("#")]
+    if not queries:
+        sys.exit("Укажите запрос или файл с запросами (--queries).")
+
+    out = Path(args.output)
+    known = set()
+    if out.exists():
+        known = {d for d in map(normalize, out.read_text(encoding="utf-8").splitlines()) if d}
+    block = load_suppression(Path(args.suppress)) | SKIP_DOMAINS
+
+    added = []
+    for q in queries:
+        for page in range(args.pages):
+            try:
+                urls = yandex_search(q, page, api_key, folder, args.region)
+            except (YandexError, requests.RequestException, ET.ParseError, ValueError) as e:
+                print(f"«{q}», стр. {page + 1}: {e}", file=sys.stderr)
+                break
+            for u in urls:
+                d = normalize(u)
+                if d and d not in known and not root_domain_skipped(d, block):
+                    known.add(d)
+                    added.append(d)
+            print(f"«{q}», стр. {page + 1}: результатов {len(urls)}, новых сайтов всего {len(added)}", file=sys.stderr)
+            if not urls:
+                break
+            time.sleep(args.delay)
+    with out.open("a", encoding="utf-8") as f:
+        for d in added:
+            f.write(d + "\n")
+    print(f"Добавлено {len(added)} сайтов в {out}", file=sys.stderr)
+
+
 # ───────────────────────────── команды ─────────────────────────────
 def cmd_audit(args):
     out = Path(args.out)
@@ -563,6 +652,16 @@ def cmd_send(args):
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
+
+    q = sub.add_parser("search", help="найти сайты через API Яндекс Поиска")
+    q.add_argument("query", nargs="*", help="поисковые запросы, например \"стоматология Казань\"")
+    q.add_argument("--queries", help="файл с запросами, по одному в строке")
+    q.add_argument("--pages", type=int, default=3, help="сколько страниц выдачи брать на запрос (по умолчанию 3)")
+    q.add_argument("--region", help="код региона Яндекса, например 213 — Москва, 2 — Санкт-Петербург")
+    q.add_argument("--output", default="urls.txt", help="куда дописывать сайты (по умолчанию urls.txt)")
+    q.add_argument("--delay", type=float, default=1.0, help="пауза между запросами, секунд")
+    q.add_argument("--suppress", default="do_not_contact.txt")
+    q.set_defaults(func=cmd_search)
 
     a = sub.add_parser("audit", help="проверить сайты и подготовить черновики")
     a.add_argument("urls", help="файл со списком сайтов, по одному в строке")

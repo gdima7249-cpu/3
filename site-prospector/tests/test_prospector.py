@@ -2,6 +2,7 @@
 
 Запуск: python -m unittest discover -s tests
 """
+import base64
 import csv
 import json
 import os
@@ -145,6 +146,40 @@ class Tests(unittest.TestCase):
         resp.stop_reason = "refusal"
         with mock.patch.dict(sys.modules, {"anthropic": fake}), self.assertRaises(p.LLMRefused):
             p.llm_draft(a, {"name": "Д"}, "claude-opus-5-5")
+
+    def test_yandex_search(self):
+        xml = """<?xml version="1.0" encoding="utf-8"?><yandexsearch version="1.0"><response><results><grouping>
+<group><doc><url>https://romashka.ru/</url><domain>romashka.ru</domain></doc></group>
+<group><doc><url>https://www.avito.ru/kazan/uslugi</url></doc></group>
+<group><doc><url>https://spb.zoon.ru/x</url></doc></group>
+<group><doc><url>http://www.lyutik-dent.ru/about</url></doc></group>
+<group><doc><url>https://already.ru/</url></doc></group>
+</grouping></results></response></yandexsearch>"""
+        ok = mock.Mock(status_code=200)
+        ok.json.return_value = {"rawData": base64.b64encode(xml.encode()).decode()}
+        empty_xml = '<yandexsearch><response><error code="15">Нет результатов</error></response></yandexsearch>'
+        empty = mock.Mock(status_code=200)
+        empty.json.return_value = {"rawData": base64.b64encode(empty_xml.encode()).decode()}
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "urls.txt"
+            out.write_text("already.ru\n", encoding="utf-8")
+            env = {"YANDEX_SEARCH_API_KEY": "k", "YANDEX_FOLDER_ID": "f"}
+            with mock.patch.dict(os.environ, env), \
+                    mock.patch.object(p.requests, "post", side_effect=[ok, empty]) as post:
+                p.main(["search", "стоматология Казань", "--pages", "5", "--output", str(out), "--delay", "0",
+                        "--region", "213", "--suppress", str(Path(d) / "none.txt")])
+            self.assertEqual(out.read_text(encoding="utf-8").split(), ["already.ru", "romashka.ru", "lyutik-dent.ru"])
+            self.assertEqual(post.call_count, 2)  # вторая страница пустая — дальше не идём
+            kw = post.call_args_list[0].kwargs
+            self.assertEqual(kw["headers"]["Authorization"], "Api-Key k")
+            self.assertEqual(kw["json"]["query"]["queryText"], "стоматология Казань")
+            self.assertEqual(kw["json"]["folderId"], "f")
+            self.assertEqual(kw["json"]["region"], "213")
+
+    def test_yandex_error(self):
+        bad = mock.Mock(status_code=403, text="Permission denied")
+        with mock.patch.object(p.requests, "post", return_value=bad), self.assertRaises(p.YandexError):
+            p.yandex_search("q", 0, "k", "f", None)
 
     def test_suppression(self):
         block = {"romashka.ru", "boss@other.ru"}
