@@ -13,5 +13,3 @@ assets/music/*
 !assets/music/.gitkeep
 .pytest_cache/
 
-# tgchannel
-tgchannel/sources.txt
