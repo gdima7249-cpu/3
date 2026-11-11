@@ -12,4 +12,3 @@ assets/backgrounds/*
 assets/music/*
 !assets/music/.gitkeep
 .pytest_cache/
-
