@@ -257,7 +257,7 @@ def test_inbox_parse_and_selection(tmp_path, monkeypatch):
     assert stories[0][1].startswith("It was a long night") and "**" not in stories[1][1]
 
     cfg = _merge(DEFAULTS, {"paths": {"db": str(tmp_path / "db.sqlite3"), "inbox": str(tmp_path / "inbox.txt")},
-                            "stories": {"source": "inbox"}})
+                            "stories": {"source": "inbox"}, "content": {"format": "facts"}})
     assert inbox.append(cfg["paths"]["inbox"], text) == 2
     assert pipeline.inbox_left(cfg) == 2
     produced = []
@@ -606,3 +606,54 @@ def test_doctor_runs_and_reports(tmp_path, monkeypatch, capsys):
     assert doctor.run(cfg) >= 3
     out = capsys.readouterr().out
     assert "webhook" in out and "другая программа" in out and "faceless-bot не запущен" in out
+
+
+def test_twitch_candidates_and_metadata(tmp_path, monkeypatch):
+    from faceless import twitch
+    from faceless.config import DEFAULTS, _merge
+    from faceless.storage import Store
+
+    cfg = _merge(DEFAULTS, {"paths": {"db": str(tmp_path / "db.sqlite3")}})
+    store = Store(cfg["paths"]["db"])
+    monkeypatch.setenv("TWITCH_CLIENT_ID", "id")
+    monkeypatch.setenv("TWITCH_CLIENT_SECRET", "secret")
+
+    def clip(i, **kw):
+        base = {"id": f"c{i}", "url": f"https://clips.twitch.tv/c{i}", "broadcaster_name": "Streamer", "title": "huge play",
+                "view_count": 1000 + i, "duration": 25.0, "language": "en"}
+        return base | kw
+
+    def fake_helix(cfg, path, params):
+        if path == "games/top":
+            return [{"id": "1", "name": "Music"}, {"id": "2", "name": "Minecraft"}]
+        assert params["game_id"] == "2"  # музыка отфильтрована
+        return [clip(1), clip(2, language="de"), clip(3, duration=3.0), clip(4, view_count=10), clip(5, broadcaster_name="Bad"),
+                clip(6, broadcaster_name="Other", view_count=5000)]
+
+    monkeypatch.setattr(twitch, "helix", fake_helix)
+    cfg["twitch"]["block_streamers"] = ["bad"]
+    got = twitch.candidates(cfg, store)
+    assert [c["id"] for c in got] == ["c6", "c1"] and got[0]["game_name"] == "Minecraft"
+    store.mark_post("tw-c6", "Other", "x", "done")
+    assert [c["id"] for c in twitch.candidates(cfg, store)] == ["c1"]
+
+    title, desc, tags = twitch.metadata(got[1])
+    assert title == "Huge play | Streamer" and "https://twitch.tv/streamer" in desc and "clips.twitch.tv/c1" in desc
+    assert "#Minecraft" in desc and "twitch" in tags
+
+
+def test_twitch_render_layout(tmp_path):
+    import random
+
+    from faceless import media, twitch
+    from faceless.config import DEFAULTS, _merge
+    from faceless.models import Word
+
+    src = tmp_path / "src.mp4"
+    media.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc2=s=640x360:r=30:d=3", "-f", "lavfi", "-i", "sine=d=3",
+               "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", str(src)])
+    cfg = _merge(DEFAULTS, {"paths": {"db": str(tmp_path / "db.sqlite3")}, "video": {"threads": 1}})
+    out = tmp_path / "out.mp4"
+    dur = twitch.render_clip(src, [Word("hello", 0.2, 0.6), Word("chat", 0.7, 1.0)], "Wow 💀", "someone", out, cfg,
+                             random.Random(1))
+    assert out.exists() and abs(dur - 3) < 0.2 and abs(media.duration(out) - 3) < 0.3

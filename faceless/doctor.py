@@ -119,7 +119,23 @@ def run(cfg: dict, fix: bool = False) -> int:
     left = pipeline.inbox_left(cfg)
     ready = len(store.queue())
     ok(f"текстов ждут: {left}, готовых роликов: {ready}")
-    llm = adapt.llm_provider(cfg) is not None
+    if cfg["content"]["format"] == "twitch":
+        from . import twitch
+
+        if not twitch.configured():
+            bad("нет ключа Twitch — клипы брать неоткуда", "faceless setup (раздел «Нарезки Twitch» в ИНСТРУКЦИИ)")
+        else:
+            try:
+                g = twitch.games(cfg)
+                ok(f"Twitch отвечает, игры: {', '.join(list(g.values())[:6])}…")
+            except Exception as e:
+                bad(f"Twitch: {e}", "проверьте Client ID и Secret: faceless setup")
+        try:
+            import faster_whisper  # noqa: F401
+            ok("субтитры включены (faster-whisper)")
+        except ImportError:
+            print("      (субтитров не будет: faster-whisper не установлен из-за нехватки места на диске)")
+    llm = adapt.llm_provider(cfg) is not None or cfg["content"]["format"] == "twitch"
     if not llm and left == 0:
         bad("собирать нечего: нет ИИ-ключа и очередь текстов пуста", "пришлите боту тексты роликов")
     if left > 0 and ready == 0:

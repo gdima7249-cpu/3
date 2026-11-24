@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 from pathlib import Path
@@ -17,6 +18,12 @@ PIXABAY_KEY = ("PIXABAY_API_KEY",
                "  pixabay.com/api/docs/ — ключ написан на этой странице в разделе Parameters). Нет ключа: Enter.")
 PEXELS_KEY = ("PEXELS_API_KEY",
               "Ключ Pexels (pexels.com/api; если там «выдача ключей приостановлена», пропустите). Нет ключа: Enter.")
+TWITCH_KEYS = [
+    ("TWITCH_CLIENT_ID", "Client ID приложения Twitch (dev.twitch.tv/console → Register Your Application,\n"
+                         "  Category: Application Integration, OAuth Redirect URL: http://localhost). Скопируйте Client ID."),
+    ("TWITCH_CLIENT_SECRET", "Client Secret того же приложения (кнопка New Secret, показывается один раз)."),
+]
+
 ENV_KEYS = [
     ("ANTHROPIC_API_KEY", "Ключ Claude (Anthropic): пишет тексты лучше Gemini, но платный.\n"
                           "  Нет ключа: Enter."),
@@ -123,18 +130,38 @@ def run(cfg: dict, config_path: str, with_keys: bool = False) -> None:
     env = _read_env(env_path)
     step = 1
 
-    _step(step, total, "Ключ Gemini (ИИ придумывает истории)",
-          "Без него автопилот не сможет писать истории. Ключ бесплатный.")
-    _ask_key(env, *GEMINI_KEY)
-    _write_env(env_path, env)
+    twitch_mode = cfg["content"]["format"] == "twitch"
+    if twitch_mode:
+        _step(step, total, "Ключ Twitch (откуда брать клипы)",
+              "Бесплатно. Нужен аккаунт Twitch с включённой двухфакторной защитой (Settings → Security).\n"
+              "Подробно по шагам: ИНСТРУКЦИЯ.md, раздел «Нарезки Twitch».")
+        for key, hint in TWITCH_KEYS:
+            _ask_key(env, key, hint)
+        _write_env(env_path, env)
+        if env.get("TWITCH_CLIENT_ID") and env.get("TWITCH_CLIENT_SECRET"):
+            from . import twitch
 
-    step += 1
-    _step(step, total, "Видео по теме (ключ Pixabay или Pexels)",
-          "Из-за него ролик перестанет быть скучным: кадры по теме меняются каждые ~5 секунд.\n"
-          "Достаточно одного ключа. Без ключей можно взять свои видео: faceless add-background ССЫЛКА --name ocean")
-    _ask_key(env, *PIXABAY_KEY)
-    _ask_key(env, *PEXELS_KEY)
-    _write_env(env_path, env)
+            os.environ.update({k: env[k] for k in ("TWITCH_CLIENT_ID", "TWITCH_CLIENT_SECRET")})
+            try:
+                twitch.app_token(cfg, fresh=True)
+                print("  ✔ Twitch принял ключ")
+            except Exception as e:
+                print(f"  ✖ {e}")
+        step += 1
+        _step(step, total, "Пропускаю ключи Gemini и Pixabay", "Для нарезок Twitch они не нужны.")
+    else:
+        _step(step, total, "Ключ Gemini (ИИ придумывает истории)",
+              "Без него автопилот не сможет писать истории. Ключ бесплатный.")
+        _ask_key(env, *GEMINI_KEY)
+        _write_env(env_path, env)
+
+        step += 1
+        _step(step, total, "Видео по теме (ключ Pixabay или Pexels)",
+              "Из-за него ролик перестанет быть скучным: кадры по теме меняются каждые ~5 секунд.\n"
+              "Достаточно одного ключа. Без ключей можно взять свои видео: faceless add-background ССЫЛКА --name ocean")
+        _ask_key(env, *PIXABAY_KEY)
+        _ask_key(env, *PEXELS_KEY)
+        _write_env(env_path, env)
 
     if with_keys:
         step += 1
@@ -182,14 +209,16 @@ def run(cfg: dict, config_path: str, with_keys: bool = False) -> None:
 
     env = _read_env(env_path)
     print("\n" + "=" * 60 + "\nИТОГ\n" + "=" * 60)
-    print(f"  {'✔' if env.get('GEMINI_API_KEY') or env.get('ANTHROPIC_API_KEY') else '✖'} ИИ для историй (Gemini/Claude)")
+    source_ok = (bool(env.get("TWITCH_CLIENT_ID") and env.get("TWITCH_CLIENT_SECRET")) if twitch_mode
+                 else bool(env.get("GEMINI_API_KEY") or env.get("ANTHROPIC_API_KEY")))
+    print(f"  {'✔' if source_ok else '✖'} " + ("Ключ Twitch" if twitch_mode else "ИИ для историй (Gemini/Claude)"))
     print(f"  {'✔' if env.get('TELEGRAM_BOT_TOKEN') else '✖'} Telegram")
     print(f"  {'✔' if (root / cfg['youtube']['token']).exists() else '–'} YouTube (по желанию)")
-    if env.get("GEMINI_API_KEY") or env.get("ANTHROPIC_API_KEY"):
+    if source_ok:
         print("\nАвтопилот включён и сам пополняет очередь каждые 6 часов. Первую порцию можно собрать сразу:")
         print("  faceless autopilot run")
     else:
-        print("\nБез ключа ИИ автопилот ждёт. Добавьте ключ: faceless setup")
+        print("\nБез ключа автопилот ждёт. Добавьте ключ: faceless setup")
 
 
 def _setup_telegram(root: Path, env: dict, env_path: Path) -> None:

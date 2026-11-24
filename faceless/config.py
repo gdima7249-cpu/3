@@ -44,8 +44,17 @@ DEFAULTS: dict = {
     "broll": {"enabled": True, "scene_seconds": 5.5, "dim": 0.14, "cache_mb": 150},
     "autopilot": {"queue_target": 6},  # сколько готовых, но ещё не доставленных роликов держать в запасе
     # Что делаем: "facts" («Вы знали, что…», по одному кадру на факт) или "stories" (вымышленные истории от первого лица)
+    # Нарезки Twitch (format = "twitch"): топ-клипы по играм, нужен ключ приложения с dev.twitch.tv
+    "twitch": {
+        "games": [],          # пусто — текущий топ Twitch; или список названий, как на сайте: ["Minecraft", "Fortnite"]
+        "top_games": 12, "exclude_games": ["Music", "DJs", "ASMR", "Art", "Pools, Hot Tubs, and Beaches", "Talk Shows & Podcasts"],
+        "language": "en", "hours": 48, "min_views": 300, "min_seconds": 8, "max_seconds": 60,
+        "zoom": 1.3,          # во сколько раз увеличить клип по высоте (бока обрезаются) — крупнее на телефоне
+        "subtitles": True, "whisper_model": "tiny.en",
+        "allow_streamers": [], "block_streamers": [],
+    },
     "content": {
-        "format": "facts", "facts_per_video": 5,
+        "format": "twitch", "facts_per_video": 5,
         "topics": ["space", "the ocean", "the human body", "animals", "ancient history", "weird science", "geography",
                    "food", "technology", "the human brain", "weather and nature", "famous inventions", "the deep sea",
                    "insects", "the Roman Empire", "volcanoes and earthquakes", "sleep and dreams", "the Moon and planets"],

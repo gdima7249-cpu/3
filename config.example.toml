@@ -67,7 +67,22 @@ enabled = false
 privacy_level = "SELF_ONLY"         # неаудированные приложения могут постить только SELF_ONLY
 
 [content]
-format = "facts"        # facts — «Вы знали, что…» (по умолчанию) | stories — вымышленные истории от первого лица
+format = "twitch"       # twitch — нарезки клипов Twitch (по умолчанию) | facts — «Вы знали, что…» | stories — истории
+
+[twitch]
+games = []              # пусто — текущий топ Twitch; или свои: ["Minecraft", "Fortnite", "Grand Theft Auto V"]
+top_games = 12          # сколько игр из топа брать
+exclude_games = ["Music", "DJs", "ASMR", "Art", "Pools, Hot Tubs, and Beaches", "Talk Shows & Podcasts"]  # там музыка = жалобы
+language = "en"
+hours = 48              # клипы за последние N часов
+min_views = 300         # не брать клипы, которые мало кто смотрел
+min_seconds = 8
+max_seconds = 60        # Shorts до минуты
+zoom = 1.3              # увеличение клипа в кадре (бока обрезаются)
+subtitles = true        # субтитры по речи стримера (faster-whisper)
+whisper_model = "tiny.en"
+allow_streamers = []    # если не пусто — только эти стримеры (те, кто разрешил клипать)
+block_streamers = []    # этих никогда не брать (если попросили не использовать их клипы)
 facts_per_video = 5     # сколько фактов в одном ролике
 # topics = ["space", "the ocean", ...]   # темы для режима «ИИ придумывает сам»; список по умолчанию см. faceless/config.py
 

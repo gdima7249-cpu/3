@@ -59,7 +59,7 @@ def build_body(row, cfg: dict) -> dict:
     if "#shorts" not in title.lower() and len(title) <= 90:
         title = f"{title} #shorts"
     tags = list(dict.fromkeys(json.loads(row["tags"] or "[]") + yc["default_tags"]))
-    status = {"selfDeclaredMadeForKids": False, "containsSyntheticMedia": yc["contains_synthetic_media"]}
+    status = {"selfDeclaredMadeForKids": False, "containsSyntheticMedia": yc["contains_synthetic_media"] and cfg["content"]["format"] != "twitch"}
     publish_at = datetime.fromisoformat(row["publish_at"])
     if publish_at > datetime.now(timezone.utc) + timedelta(minutes=15):
         status |= {"privacyStatus": "private", "publishAt": publish_at.strftime("%Y-%m-%dT%H:%M:%SZ")}

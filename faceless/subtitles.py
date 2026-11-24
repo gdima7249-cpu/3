@@ -39,7 +39,7 @@ def _escape(text: str) -> str:
 
 def build_ass(words: list[Word], *, start_at: float, end_at: float, width: int, height: int,
               font: str, font_size: int, highlight: str, max_words: int = 3,
-              badges: list[tuple[float, float, str]] | None = None) -> str:
+              badges: list[tuple[float, float, str]] | None = None, pos_y: int | None = None) -> str:
     """start_at — с какого момента показывать субтитры (после карточки-заголовка)."""
     k = font_size / 92  # во сколько раз кадр меньше базового (1080 px)
     outline, shadow, margin = max(3, round(7 * k)), max(1, round(3 * k)), round(80 * k)
@@ -74,6 +74,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 for i, t in enumerate(tokens)
             ]
             pop = "{\\fscx70\\fscy70\\t(0,90,\\fscx100\\fscy100)}" if wi == 0 else ""
+            if pos_y is not None:  # субтитры не по центру кадра, а на заданной высоте (под видео в нарезках)
+                pop = f"{{\\an5\\pos({width // 2},{pos_y})}}" + pop
             lines.append(f"Dialogue: 0,{ass_time(start)},{ass_time(end)},Main,,0,0,0,,{pop}{' '.join(styled)}")
     for start, end, text in (badges or []):  # плашка «FACT 1» сверху при начале каждого факта
         tags = (f"{{\\an8\\pos({width // 2},{round(height * 0.085)})\\fad(120,220)\\fs{round(font_size * 1.15)}"

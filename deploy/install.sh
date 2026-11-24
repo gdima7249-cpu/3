@@ -71,6 +71,16 @@ rm -rf "$HOME_DIR/.cache/pip"
 runuser -u faceless -- env TMPDIR="$TMPDIR" PIP_NO_CACHE_DIR=1 "$APP/.venv/bin/pip" install -q --upgrade pip
 runuser -u faceless -- env TMPDIR="$TMPDIR" PIP_NO_CACHE_DIR=1 "$APP/.venv/bin/pip" install -q -r "$APP/requirements.txt" \
   || die "библиотеки не установились. Пришлите вывод команды: df -h"
+# yt-dlp надо держать свежим: Twitch меняет сайт, старые версии перестают скачивать клипы
+runuser -u faceless -- env TMPDIR="$TMPDIR" PIP_NO_CACHE_DIR=1 "$APP/.venv/bin/pip" install -q --upgrade yt-dlp || true
+# Субтитры для нарезок (~400 МБ): только если место есть
+if [ "$(free_mb "$HOME_DIR")" -ge 1200 ]; then
+  say "Ставлю распознавание речи для субтитров (ещё пара минут)"
+  runuser -u faceless -- env TMPDIR="$TMPDIR" PIP_NO_CACHE_DIR=1 "$APP/.venv/bin/pip" install -q -r "$APP/requirements-subtitles.txt" \
+    || echo "  (субтитры не установились — ролики будут без них)"
+else
+  echo "  Места мало ($(free_mb "$HOME_DIR") МБ): ставлю без субтитров. Освободите 1.2 ГБ и запустите установку снова."
+fi
 rm -rf "$TMPDIR"/*
 
 chmod 700 "$APP/secrets"
@@ -145,9 +155,9 @@ FREE_MB=$(free_mb "$HOME_DIR")
 cat <<'EOF'
 
 Дальше (подробно — в ИНСТРУКЦИЯ.md):
-  faceless setup --keys                 ключ Gemini и подключение Telegram/YouTube (один раз)
+  faceless setup                        ключ Twitch и подключение Telegram/YouTube (один раз)
   faceless autopilot run                собрать ролики прямо сейчас
   faceless status                       что настроено и что в очереди
   faceless doctor                       самопроверка, если бот молчит
-Автопилот уже включён: как только появится ключ Gemini, ролики будут собираться сами.
+Автопилот уже включён: как только появится ключ Twitch, ролики будут собираться сами.
 EOF

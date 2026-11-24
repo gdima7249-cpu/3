@@ -217,6 +217,10 @@ def make(cfg: dict, count: int, subreddit: str | None = None, seed: int | None =
 def _make(cfg: dict, store: Store, count: int, subreddit: str | None, rng: random.Random) -> list[Path]:
     import os
 
+    if cfg["content"]["format"] == "twitch":
+        from . import twitch
+
+        return twitch.make(cfg, store, count, rng)
     source = cfg["stories"]["source"]
     made: list[Path] = []
     # Reddit с 2025 года отдаёт данные только по одобренному ключу; без ключей в режиме auto его не трогаем

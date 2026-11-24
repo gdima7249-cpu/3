@@ -99,6 +99,12 @@ def _print_overview(cfg: dict) -> None:
 
     tg = bool(os.environ.get("TELEGRAM_BOT_TOKEN") and os.environ.get("TELEGRAM_CHAT_ID"))
     print(f"  {mark(tg)} Telegram-бот подключён" + ("" if tg else "   (faceless setup: токен бота, затем напишите боту /start)"))
+    if cfg["content"]["format"] == "twitch":
+        from . import twitch
+
+        print(f"  {mark(twitch.configured())} Нарезки Twitch: ключ " + ("есть" if twitch.configured() else "не задан (faceless setup)"))
+        print(f"  Свободно на диске: {free_mb} МБ")
+        return
     left = pipeline.inbox_left(cfg)
     print(f"  {mark(left > 0 or adapt.llm_provider(cfg) is not None)} Источник историй: "
           f"ИИ {'подключён' if adapt.llm_provider(cfg) else 'не подключён'}, в inbox.txt ждут: {left}")
@@ -363,6 +369,10 @@ def main(argv: list[str] | None = None) -> None:
 
             ok = (cfg["telegram"]["enabled"] or Path(cfg["youtube"]["token"]).exists()
                   or bool(os.environ.get("TELEGRAM_BOT_TOKEN") and os.environ.get("TELEGRAM_CHAT_ID")))
+        elif cfg["content"]["format"] == "twitch":
+            from . import twitch
+
+            ok = twitch.configured()
         else:
             ok = (adapt.llm_provider(cfg) is not None or cfg["text"]["adapter"] == "none"
                   or pipeline.inbox_left(cfg) > 0)
