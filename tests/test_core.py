@@ -682,3 +682,15 @@ def test_twitch_keyless_streamers(tmp_path, monkeypatch):
     assert [c["id"] for c in got] == ["x1"]  # мало просмотров отсеяно, сбой канала b не ломает остальное
     title, desc, _ = twitch.metadata(got[0])
     assert "playing" not in desc and "#a" in desc and title == "Lol | a"
+
+
+def test_twitch_block_words(tmp_path):
+    from faceless import twitch
+    from faceless.config import DEFAULTS, _merge
+    from faceless.storage import Store
+
+    cfg = _merge(DEFAULTS, {"paths": {"db": str(tmp_path / "db.sqlite3")}})
+    store = Store(cfg["paths"]["db"])
+    base = {"id": "1", "broadcaster_name": "x", "view_count": 9999, "duration": 20, "language": "en"}
+    assert not twitch._keep(base | {"title": "tries out the strip club"}, cfg, store)
+    assert twitch._keep(base | {"title": "insane clutch"}, cfg, store)

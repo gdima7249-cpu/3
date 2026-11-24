@@ -105,6 +105,9 @@ def _keep(c: dict, cfg: dict, store: Store) -> bool:
     streamer = c.get("broadcaster_name", "").lower()
     allow = {s.lower() for s in tc["allow_streamers"]}
     lang = (c.get("language") or tc["language"]).split("-")[0].lower()
+    title = (c.get("title") or "").lower()
+    if any(w.lower() in title for w in tc["block_words"]):
+        return False
     return (lang == tc["language"] and (c.get("view_count") or 0) >= tc["min_views"]
             and tc["min_seconds"] <= (c.get("duration") or 0) <= tc["max_seconds"]
             and streamer not in {s.lower() for s in tc["block_streamers"]} and (not allow or streamer in allow)

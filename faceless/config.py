@@ -52,6 +52,10 @@ DEFAULTS: dict = {
         "zoom": 1.3,          # во сколько раз увеличить клип по высоте (бока обрезаются) — крупнее на телефоне
         "subtitles": True, "whisper_model": "tiny.en",
         "allow_streamers": [], "block_streamers": [],
+        # клипы с такими словами в названии пропускаем: YouTube режет их возрастом или снимает с монетизации
+        "block_words": ["strip", "nsfw", "18+", "nude", "naked", "boob", "sex", "porn", "onlyfans", "hot tub",
+                        "racist", "slur", "n word", "nword", "suicide", "drunk", "weed", "gambl", "casino", "slots",
+                        "nazi", "kill yourself", "kys", "bikini"],
         # Без ключа Twitch клипы берутся с каналов этих стримеров (топ за сутки/неделю). С ключом — топ по играм.
         "streamers": ["xqc", "kaicenat", "jynxzi", "caseoh_", "shroud", "summit1g", "tarik", "lirik", "sodapoppin",
                       "moistcr1tikal", "zackrawrr", "stableronaldo", "emiru", "extraemily", "ohnepixel", "tenz"],
