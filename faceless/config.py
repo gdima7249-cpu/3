@@ -52,6 +52,9 @@ DEFAULTS: dict = {
         "zoom": 1.3,          # во сколько раз увеличить клип по высоте (бока обрезаются) — крупнее на телефоне
         "subtitles": True, "whisper_model": "tiny.en",
         "allow_streamers": [], "block_streamers": [],
+        # Без ключа Twitch клипы берутся с каналов этих стримеров (топ за сутки/неделю). С ключом — топ по играм.
+        "streamers": ["xqc", "kaicenat", "jynxzi", "caseoh_", "shroud", "summit1g", "tarik", "lirik", "sodapoppin",
+                      "moistcr1tikal", "zackrawrr", "stableronaldo", "emiru", "extraemily", "ohnepixel", "tenz"],
     },
     "content": {
         "format": "twitch", "facts_per_video": 5,

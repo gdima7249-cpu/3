@@ -132,9 +132,10 @@ def run(cfg: dict, config_path: str, with_keys: bool = False) -> None:
 
     twitch_mode = cfg["content"]["format"] == "twitch"
     if twitch_mode:
-        _step(step, total, "Ключ Twitch (откуда брать клипы)",
-              "Бесплатно. Нужен аккаунт Twitch с включённой двухфакторной защитой (Settings → Security).\n"
-              "Подробно по шагам: ИНСТРУКЦИЯ.md, раздел «Нарезки Twitch».")
+        _step(step, total, "Ключ Twitch (по желанию)",
+              "С ключом программа берёт топ клипов по играм. Без ключа — топ с каналов популярных стримеров\n"
+              "(список в config.toml, twitch.streamers). Twitch не принимает российские номера для ключа:\n"
+              "если ключа нет, просто нажмите Enter два раза — всё будет работать."),
         for key, hint in TWITCH_KEYS:
             _ask_key(env, key, hint)
         _write_env(env_path, env)
@@ -209,9 +210,9 @@ def run(cfg: dict, config_path: str, with_keys: bool = False) -> None:
 
     env = _read_env(env_path)
     print("\n" + "=" * 60 + "\nИТОГ\n" + "=" * 60)
-    source_ok = (bool(env.get("TWITCH_CLIENT_ID") and env.get("TWITCH_CLIENT_SECRET")) if twitch_mode
+    source_ok = (bool(env.get("TWITCH_CLIENT_ID") and env.get("TWITCH_CLIENT_SECRET") or cfg["twitch"]["streamers"]) if twitch_mode
                  else bool(env.get("GEMINI_API_KEY") or env.get("ANTHROPIC_API_KEY")))
-    print(f"  {'✔' if source_ok else '✖'} " + ("Ключ Twitch" if twitch_mode else "ИИ для историй (Gemini/Claude)"))
+    print(f"  {'✔' if source_ok else '✖'} " + ("Источник клипов Twitch" if twitch_mode else "ИИ для историй (Gemini/Claude)"))
     print(f"  {'✔' if env.get('TELEGRAM_BOT_TOKEN') else '✖'} Telegram")
     print(f"  {'✔' if (root / cfg['youtube']['token']).exists() else '–'} YouTube (по желанию)")
     if source_ok:

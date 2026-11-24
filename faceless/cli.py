@@ -102,7 +102,8 @@ def _print_overview(cfg: dict) -> None:
     if cfg["content"]["format"] == "twitch":
         from . import twitch
 
-        print(f"  {mark(twitch.configured())} Нарезки Twitch: ключ " + ("есть" if twitch.configured() else "не задан (faceless setup)"))
+        src = "ключ Twitch (топ по играм)" if twitch.configured() else f"без ключа, стримеров в списке: {len(cfg['twitch']['streamers'])}"
+        print(f"  {mark(twitch.available(cfg))} Нарезки Twitch: {src}")
         print(f"  Свободно на диске: {free_mb} МБ")
         return
     left = pipeline.inbox_left(cfg)
@@ -372,7 +373,7 @@ def main(argv: list[str] | None = None) -> None:
         elif cfg["content"]["format"] == "twitch":
             from . import twitch
 
-            ok = twitch.configured()
+            ok = twitch.available(cfg)
         else:
             ok = (adapt.llm_provider(cfg) is not None or cfg["text"]["adapter"] == "none"
                   or pipeline.inbox_left(cfg) > 0)

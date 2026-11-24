@@ -657,3 +657,28 @@ def test_twitch_render_layout(tmp_path):
     dur = twitch.render_clip(src, [Word("hello", 0.2, 0.6), Word("chat", 0.7, 1.0)], "Wow 💀", "someone", out, cfg,
                              random.Random(1))
     assert out.exists() and abs(dur - 3) < 0.2 and abs(media.duration(out) - 3) < 0.3
+
+
+def test_twitch_keyless_streamers(tmp_path, monkeypatch):
+    from faceless import twitch
+    from faceless.config import DEFAULTS, _merge
+    from faceless.storage import Store
+
+    cfg = _merge(DEFAULTS, {"paths": {"db": str(tmp_path / "db.sqlite3")}, "twitch": {"streamers": ["a", "b"]}})
+    store = Store(cfg["paths"]["db"])
+    monkeypatch.delenv("TWITCH_CLIENT_ID", raising=False)
+    assert not twitch.configured() and twitch.available(cfg)
+
+    def fake(cfg, s):
+        if s == "b":
+            raise RuntimeError("offline")
+        return [{"id": "x1", "url": "https://clips.twitch.tv/x1", "title": "lol", "broadcaster_name": "a", "game_name": "",
+                 "view_count": 900, "duration": 20.0, "language": ""},
+                {"id": "x2", "url": "u", "title": "t", "broadcaster_name": "a", "game_name": "", "view_count": 5,
+                 "duration": 20.0, "language": ""}]
+
+    monkeypatch.setattr(twitch, "channel_clips", fake)
+    got = twitch.candidates(cfg, store)
+    assert [c["id"] for c in got] == ["x1"]  # мало просмотров отсеяно, сбой канала b не ломает остальное
+    title, desc, _ = twitch.metadata(got[0])
+    assert "playing" not in desc and "#a" in desc and title == "Lol | a"

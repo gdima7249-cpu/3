@@ -33,7 +33,13 @@ HELIX = "https://api.twitch.tv/helix/"
 
 
 def configured() -> bool:
+    """Есть ключ приложения Twitch (тогда берём топ по играм)."""
     return bool(os.environ.get("TWITCH_CLIENT_ID") and os.environ.get("TWITCH_CLIENT_SECRET"))
+
+
+def available(cfg: dict) -> bool:
+    """Есть откуда брать клипы: ключ Twitch или список стримеров (без ключа, через yt-dlp)."""
+    return configured() or bool(cfg["twitch"]["streamers"])
 
 
 # ---------------------------------------------------------------- API
@@ -94,12 +100,51 @@ def clip_id(clip: dict) -> str:
     return "tw-" + clip["id"]
 
 
+def _keep(c: dict, cfg: dict, store: Store) -> bool:
+    tc = cfg["twitch"]
+    streamer = c.get("broadcaster_name", "").lower()
+    allow = {s.lower() for s in tc["allow_streamers"]}
+    lang = (c.get("language") or tc["language"]).split("-")[0].lower()
+    return (lang == tc["language"] and (c.get("view_count") or 0) >= tc["min_views"]
+            and tc["min_seconds"] <= (c.get("duration") or 0) <= tc["max_seconds"]
+            and streamer not in {s.lower() for s in tc["block_streamers"]} and (not allow or streamer in allow)
+            and not store.seen(clip_id(c)))
+
+
+def channel_clips(cfg: dict, streamer: str) -> list[dict]:
+    """Топ клипов канала за сутки/неделю без ключа Twitch (так же, как их показывает сайт; через yt-dlp)."""
+    import yt_dlp
+
+    rng = "24hr" if cfg["twitch"]["hours"] <= 24 else "7d"
+    opts = {"quiet": True, "no_warnings": True, "extract_flat": "in_playlist", "playlistend": 25}
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(f"https://www.twitch.tv/{streamer}/clips?filter=clips&range={rng}", download=False)
+    out = []
+    for e in info.get("entries") or []:
+        if not e or not e.get("url"):
+            continue
+        out.append({"id": str(e.get("id") or e["url"].rstrip("/").rsplit("/", 1)[-1]), "url": e["url"],
+                    "title": e.get("title") or "", "broadcaster_name": streamer, "game_name": "",
+                    "view_count": e.get("view_count") or 0, "duration": e.get("duration") or 0,
+                    "language": e.get("language") or ""})
+    return out
+
+
 def candidates(cfg: dict, store: Store) -> list[dict]:
-    """Свежие клипы по играм, лучшие сверху; уже использованные, слишком короткие/длинные и чужого языка — отсеяны."""
+    """Свежие клипы, лучшие сверху; уже использованные, слишком короткие/длинные и чужого языка — отсеяны.
+
+    С ключом Twitch — топ по играм; без ключа — топ с каналов из списка twitch.streamers."""
+    if not configured():
+        out = []
+        for s in cfg["twitch"]["streamers"]:
+            try:
+                out += [c for c in channel_clips(cfg, s) if _keep(c, cfg, store)]
+            except Exception as e:
+                log.warning("Twitch, клипы %s: %s", s, str(e)[:200])
+        out.sort(key=lambda c: c["view_count"], reverse=True)
+        return out
     tc = cfg["twitch"]
     since = (datetime.now(timezone.utc) - timedelta(hours=tc["hours"])).isoformat(timespec="seconds").replace("+00:00", "Z")
-    allow = {s.lower() for s in tc["allow_streamers"]}
-    block = {s.lower() for s in tc["block_streamers"]}
     out: list[dict] = []
     for gid, name in games(cfg).items():
         try:
@@ -108,10 +153,7 @@ def candidates(cfg: dict, store: Store) -> list[dict]:
             log.warning("Twitch, клипы «%s»: %s", name, e)
             continue
         for c in clips:
-            streamer = c.get("broadcaster_name", "").lower()
-            if (c.get("language", "").split("-")[0] != tc["language"] or c.get("view_count", 0) < tc["min_views"]
-                    or not (tc["min_seconds"] <= c.get("duration", 0) <= tc["max_seconds"])
-                    or streamer in block or (allow and streamer not in allow) or store.seen(clip_id(c))):
+            if not _keep(c, cfg, store):
                 continue
             c["game_name"] = name
             out.append(c)
@@ -246,17 +288,17 @@ def metadata(clip: dict) -> tuple[str, str, list[str]]:
     yt_title = f"{title} | {streamer}"
     if len(yt_title) > 90:
         yt_title = yt_title[:87].rstrip() + "…"
-    desc = (f"{title} — {streamer} playing {game} on Twitch.\n\n"
+    desc = (f"{title} — {streamer}" + (f" playing {game}" if game else "") + " on Twitch.\n\n"
             f"🎮 Streamer: https://twitch.tv/{streamer.lower()} (go give them a follow!)\n"
             f"🎬 Original clip: {clip['url']}\n\n"
-            f"#shorts #twitch #{_tag(game)} #{_tag(streamer)}")
-    tags = list(dict.fromkeys(["twitch", "twitch clips", "streamer", "gaming", streamer, game, "funny moments"]))
+            f"#shorts #twitch " + (f"#{_tag(game)} " if game else "") + f"#{_tag(streamer)}")
+    tags = list(dict.fromkeys([t for t in ["twitch", "twitch clips", "streamer", "gaming", streamer, game, "funny moments"] if t]))
     return yt_title, desc, tags
 
 
 def make(cfg: dict, store: Store, count: int, rng: random.Random) -> list[Path]:
-    if not configured():
-        log.info("Нет ключа Twitch (TWITCH_CLIENT_ID/SECRET): faceless setup")
+    if not available(cfg):
+        log.info("Не задан ни ключ Twitch, ни список стримеров (twitch.streamers в config.toml)")
         return []
     made: list[Path] = []
     per_streamer: dict[str, int] = {}
@@ -270,7 +312,7 @@ def make(cfg: dict, store: Store, count: int, rng: random.Random) -> list[Path]:
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         base = Path(cfg["paths"]["output_dir"]) / f"{stamp}-{cid}"
         src = base / "source.mp4"
-        log.info("«%s» (%s, %s, %d просмотров): скачиваю…", clip["title"][:50], streamer, clip["game_name"],
+        log.info("«%s» (%s, %s, %d просмотров): скачиваю…", clip["title"][:50], streamer, clip["game_name"] or "Twitch",
                  clip["view_count"])
         try:
             download(clip["url"], src)

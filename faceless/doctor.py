@@ -122,8 +122,14 @@ def run(cfg: dict, fix: bool = False) -> int:
     if cfg["content"]["format"] == "twitch":
         from . import twitch
 
-        if not twitch.configured():
-            bad("нет ключа Twitch — клипы брать неоткуда", "faceless setup (раздел «Нарезки Twitch» в ИНСТРУКЦИИ)")
+        if not twitch.available(cfg):
+            bad("нет ни ключа Twitch, ни списка стримеров — клипы брать неоткуда", "faceless setup или twitch.streamers в config.toml")
+        elif not twitch.configured():
+            try:
+                n = len(twitch.channel_clips(cfg, cfg["twitch"]["streamers"][0]))
+                ok(f"режим без ключа: канал {cfg['twitch']['streamers'][0]} отдаёт клипов: {n}")
+            except Exception as e:
+                bad(f"клипы без ключа не скачиваются: {str(e)[:200]}", "обновите программу командой установки (свежий yt-dlp)")
         else:
             try:
                 g = twitch.games(cfg)
