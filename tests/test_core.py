@@ -694,3 +694,28 @@ def test_twitch_block_words(tmp_path):
     base = {"id": "1", "broadcaster_name": "x", "view_count": 9999, "duration": 20, "language": "en"}
     assert not twitch._keep(base | {"title": "tries out the strip club"}, cfg, store)
     assert twitch._keep(base | {"title": "insane clutch"}, cfg, store)
+
+
+def test_twitch_rotates_streamers(tmp_path, monkeypatch):
+    import random
+
+    from faceless import twitch
+    from faceless.config import DEFAULTS, _merge
+    from faceless.storage import Store
+
+    cfg = _merge(DEFAULTS, {"paths": {"db": str(tmp_path / "db.sqlite3"), "output_dir": str(tmp_path)}})
+    store = Store(cfg["paths"]["db"])
+    store.mark_post("tw-old", "Big", "x", "done")
+    clips = [{"id": "b1", "url": "u1", "title": "a", "broadcaster_name": "Big", "game_name": "", "view_count": 900000, "duration": 20},
+             {"id": "s1", "url": "u2", "title": "b", "broadcaster_name": "Small", "game_name": "", "view_count": 500, "duration": 20}]
+    monkeypatch.setattr(twitch, "available", lambda cfg: True)
+    monkeypatch.setattr(twitch, "candidates", lambda cfg, store: clips)
+    picked = []
+
+    def fake_download(url, dest):
+        picked.append(url)
+        raise RuntimeError("stop")
+
+    monkeypatch.setattr(twitch, "download", fake_download)
+    twitch.make(cfg, store, 1, random.Random(1))
+    assert picked[0] == "u2"  # недавний стример уступает очередь другому

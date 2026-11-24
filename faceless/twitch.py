@@ -305,7 +305,13 @@ def make(cfg: dict, store: Store, count: int, rng: random.Random) -> list[Path]:
         return []
     made: list[Path] = []
     per_streamer: dict[str, int] = {}
-    for clip in candidates(cfg, store):
+    # разнообразие: стримеров последних роликов пропускаем, пока есть клипы других (автопилот собирает по одному)
+    recent = {r[0].lower() for r in store.db.execute(
+        "SELECT subreddit FROM posts WHERE id LIKE 'tw-%' AND status='done' ORDER BY created_at DESC LIMIT ?",
+        (int(cfg["twitch"]["recent_gap"]),))}
+    found = candidates(cfg, store)
+    fresh = [c for c in found if c["broadcaster_name"].lower() not in recent]
+    for clip in fresh + [c for c in found if c not in fresh]:
         if len(made) >= count:
             break
         streamer = clip["broadcaster_name"]
