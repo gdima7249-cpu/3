@@ -42,9 +42,26 @@ for v in python3.13 python3.12 python3.11; do
   if command -v "$v" >/dev/null; then PY="$v"; break; fi
 done
 if [ -z "$PY" ]; then
-  say "Нужен Python 3.11+, пробую поставить python3.11"
-  apt-get install -y -qq python3.11 python3.11-venv >/dev/null 2>&1 && PY=python3.11 \
-    || die "в этой системе нет Python 3.11+. Нужна Ubuntu 22.04+ или Debian 12+"
+  say "В системе старый Python, ставлю Python 3.12 рядом (системный не трогаю)"
+  apt-get install -y -qq python3.11 python3.11-venv >/dev/null 2>&1 && PY=python3.11
+fi
+if [ -z "$PY" ] && grep -qi ubuntu /etc/os-release; then
+  # Ubuntu 20.04: свежий Python из PPA deadsnakes
+  apt-get install -y -qq --no-install-recommends software-properties-common gpg-agent >/dev/null 2>&1 || true
+  if add-apt-repository -y ppa:deadsnakes/ppa >/dev/null 2>&1 && apt-get update -qq \
+     && apt-get install -y -qq --no-install-recommends python3.12 python3.12-venv >/dev/null 2>&1; then
+    PY=python3.12
+  fi
+  apt-get clean
+fi
+if [ -z "$PY" ]; then
+  # запасной путь: готовый Python от uv в /opt/faceless/python (~100 МБ)
+  mkdir -p "$HOME_DIR/bin"
+  curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$HOME_DIR/bin" UV_NO_MODIFY_PATH=1 sh >/dev/null 2>&1 \
+    && UV_PYTHON_INSTALL_DIR="$HOME_DIR/python" "$HOME_DIR/bin/uv" python install 3.12 >/dev/null 2>&1 \
+    && PY=$(UV_PYTHON_INSTALL_DIR="$HOME_DIR/python" "$HOME_DIR/bin/uv" python find 3.12) \
+    || die "не удалось поставить Python 3.11+. Пришлите вывод: cat /etc/os-release"
+  rm -rf /root/.cache/uv
 fi
 "$PY" -m venv --help >/dev/null 2>&1 || apt-get install -y -qq "${PY}-venv" >/dev/null
 say "Python: $($PY --version)"
@@ -53,6 +70,7 @@ if ! id faceless >/dev/null 2>&1; then
   say "Создаю отдельного пользователя faceless (ваш Telegram-бот его не касается)"
   useradd -r -m -d "$HOME_DIR" -s /usr/sbin/nologin faceless
 fi
+chown faceless: "$HOME_DIR"  # папку могли создать раньше (под Python), владелец должен быть faceless
 
 if [ -d "$APP/.git" ]; then
   say "Обновляю код"
