@@ -232,14 +232,28 @@ def _setup_telegram(root: Path, env: dict, env_path: Path) -> None:
     token = input("Токен НОВОГО бота от @BotFather (Enter — пропустить)\n> ").strip()
     if not token:
         return
-    input("Откройте этого бота в Telegram, нажмите «Запустить» (/start), потом вернитесь и нажмите Enter > ")
     try:
-        chat_id = telegram.find_chat_id(token)
+        me = telegram._call("getMe", token)
+        telegram._call("deleteWebhook", token)
     except Exception as e:
-        print(f"Не получилось: {e}. Проверьте токен и запустите setup ещё раз.")
+        print(f"Telegram не принял токен: {e}. Скопируйте токен у @BotFather целиком и запустите setup ещё раз.")
         return
+    print(f"\nБот @{me.get('username')} найден. Откройте его в Telegram: t.me/{me.get('username')}")
+    print("и нажмите «Запустить» (или напишите ему любое сообщение). Жду до 3 минут…")
+    import time
+
+    chat_id = None
+    for _ in range(60):  # ждём сами: не нужно возвращаться и жать Enter (лишний перевод строки при вставке его «съедал»)
+        try:
+            chat_id = telegram.find_chat_id(token)
+        except Exception as e:
+            print(f"Не получилось: {e}. Запустите setup ещё раз.")
+            return
+        if chat_id:
+            break
+        time.sleep(3)
     if not chat_id:
-        print("Бот не видит вашего /start. Напишите ему что-нибудь и запустите setup ещё раз.")
+        print(f"Сообщения от вас так и не пришло. Откройте t.me/{me.get('username')}, нажмите «Запустить» и запустите setup ещё раз.")
         return
     env.update(TELEGRAM_BOT_TOKEN=token, TELEGRAM_CHAT_ID=str(chat_id))
     _write_env(env_path, env)
