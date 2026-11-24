@@ -11,3 +11,5 @@ Restart=always
 RestartSec=10
 Nice=5
 MemoryMax=150M
+MemoryLimit=150M
+OOMScoreAdjust=500

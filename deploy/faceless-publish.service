@@ -13,5 +13,9 @@ User=faceless
 Nice=15
 CPUWeight=20
 IOWeight=20
-MemoryHigh=700M
+# Память: при нехватке система должна убить сборку ролика, а не ваш бот (OOMScoreAdjust)
+MemoryHigh=300M
+MemoryMax=450M
+MemoryLimit=450M
+OOMScoreAdjust=900
 TimeoutStartSec=3h
